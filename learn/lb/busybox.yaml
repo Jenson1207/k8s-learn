@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: busybox
+spec:
+  selector:
+    matchLabels:
+      app: busybox
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: busybox
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - busybox
+            topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: busybox
+        image: busybox:1.28
+        ports:
+        - containerPort: 80
+        command: ["/bin/sh","-c","sleep 100000"]

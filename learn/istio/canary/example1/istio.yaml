@@ -1,0 +1,51 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: canary-gateway
+  namespace: canary
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port: 
+      name: http
+      number: 80  # ingress-gateway port num
+      protocol: HTTP
+    hosts:
+    - "*"
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: canary
+  namespace: canary
+spec:
+  gateways:
+  - canary-gateway
+  hosts:
+  - "*"
+  http:
+  - route:
+    - destination:
+        host: busybox-canary.canary.svc.cluster.local
+        subset: v1  
+      weight: 70
+    - destination:
+        host: busybox-canary.canary.svc.cluster.local
+        subset: v2
+      weight: 30
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: canary
+  namespace: canary
+spec:
+  host: busybox-canary.canary.svc.cluster.local
+  subsets:
+  - name: v1 #对进入名为canary的子集的所有流量使用权重负载均衡策略，该子集由带有标签app:v1 的endpoints(如Pod)组成
+    labels:
+      app: v1
+  - name: v2
+    labels:
+      app: v2 #对进入名为canary的子集的所有流量使用权重负载均衡策略，该子集由带有标签app:v2 的endpoints(如Pod)组成

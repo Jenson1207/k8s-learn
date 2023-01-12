@@ -1,0 +1,30 @@
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: local-elasticsearch-kibana
+provisioner: kubernetes.io/no-provisioner
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: local-elasticsearch-kibana-data
+spec:
+  volumeMode: Filesystem
+  storageClassName: local-elasticsearch-kibana
+  persistentVolumeReclaimPolicy: Retain
+  local:
+    path: /data/elasticsearch-kibana
+  capacity:
+    storage: 10Gi
+  accessModes:
+  - ReadWriteOnce
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - k8s-master-1

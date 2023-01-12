@@ -1,0 +1,13 @@
+{
+  "CN": "system:kube-proxy",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [{
+      "C": "CN",
+      "ST": "hunan",
+      "L": "changsha",
+      "O": "system:kube-proxy",
+      "OU": "system"}]
+}

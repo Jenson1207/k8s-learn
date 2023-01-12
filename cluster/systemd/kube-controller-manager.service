@@ -1,0 +1,39 @@
+[Unit]                                                                     
+Description=Kubernetes Controller Manager
+Documentation=https://github.com/kubernetes/kubernetes
+[Service]      
+ExecStart=/usr/bin/kube-controller-manager \
+    --port=10252 \
+    --secure-port=10257 \
+    --bind-address=127.0.0.1 \
+    --kubeconfig=/etc/kubernetes/kube-controller-manager.kubeconfig \
+    --service-cluster-ip-range=10.0.0.0/16 \
+    --cluster-name=kubernetes \
+    --cluster-signing-cert-file=/etc/kubernetes/ssl/kube-apiserver-ca.pem \
+    --cluster-signing-key-file=/etc/kubernetes/ssl/kube-apiserver-ca-key.pem \
+    --cluster-signing-duration=87600h \
+    --allocate-node-cidrs=true \
+    --cluster-cidr=10.70.0.0/16 \
+    --node-cidr-mask-size=24 \
+    --root-ca-file=/etc/kubernetes/ssl/kube-apiserver-ca.pem \
+    --service-account-private-key-file=/etc/kubernetes/ssl/service.key \
+    --use-service-account-credentials=true \
+    --leader-elect=true \
+    --feature-gates=RotateKubeletServerCertificate=true,RotateKubeletClientCertificate=true,EphemeralContainers=true \
+    --controllers=*,bootstrapsigner,tokencleaner \
+    --tls-cert-file=/etc/kubernetes/ssl/kube-controller-manager.pem \
+    --tls-private-key-file=/etc/kubernetes/ssl/kube-controller-manager-key.pem \
+    --requestheader-client-ca-file=/etc/kubernetes/ssl/front-proxy-ca.pem \
+    --requestheader-allowed-names=front-proxy-client   \
+    --requestheader-extra-headers-prefix=X-Remote-Extra-  \
+    --requestheader-group-headers=X-Remote-Group     \
+    --requestheader-username-headers=X-Remote-User   \
+    --horizontal-pod-autoscaler-use-rest-clients=true \
+    --alsologtostderr=true \
+    --logtostderr=false \
+    --log-dir=/var/log/kubernetes \
+    --v=2      
+Restart=on-failure
+RestartSec=5   
+[Install]      
+WantedBy=multi-user.target

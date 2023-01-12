@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+    name: mount-none
+spec:
+    containers:
+    - name: busybox
+      image: busybox:1.28
+      command: ["/bin/sh","-c","sleep 300000"]
+      volumeMounts:
+      - name: testmount
+        mountPath: /mnt
+        mountPropagation: None
+    volumes:
+    - name: testmount
+      hostPath:
+        path: /data/mounttest

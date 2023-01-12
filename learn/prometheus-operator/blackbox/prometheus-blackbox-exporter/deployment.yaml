@@ -1,0 +1,273 @@
+NAME: monitor
+LAST DEPLOYED: Sat Jul  2 11:36:10 2022
+NAMESPACE: default
+STATUS: pending-install
+REVISION: 1
+TEST SUITE: None
+HOOKS:
+MANIFEST:
+---
+# Source: prometheus-blackbox-exporter/templates/podsecuritypolicy.yaml
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: monitor-prometheus-blackbox-exporter-psp
+  namespace: default
+  labels:
+    helm.sh/chart: prometheus-blackbox-exporter-5.8.2
+    app.kubernetes.io/name: prometheus-blackbox-exporter
+    app.kubernetes.io/instance: monitor
+    app.kubernetes.io/version: "0.20.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  # Prevents running in privileged mode
+  privileged: false
+  # Required to prevent escalations to root.
+  allowPrivilegeEscalation: false
+  volumes:
+    - configMap
+    - secret
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: RunAsAny
+  seLinux:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: 'MustRunAs'
+    ranges:
+      # Forbid adding the root group.
+      - min: 1
+        max: 65535
+  fsGroup:
+    rule: 'MustRunAs'
+    ranges:
+      # Forbid adding the root group.
+      - min: 1
+        max: 65535
+  readOnlyRootFilesystem: true
+---
+# Source: prometheus-blackbox-exporter/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: monitor-prometheus-blackbox-exporter
+  namespace: default
+  labels:
+    helm.sh/chart: prometheus-blackbox-exporter-5.8.2
+    app.kubernetes.io/name: prometheus-blackbox-exporter
+    app.kubernetes.io/instance: monitor
+    app.kubernetes.io/version: "0.20.0"
+    app.kubernetes.io/managed-by: Helm
+---
+# Source: prometheus-blackbox-exporter/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitor-prometheus-blackbox-exporter
+  namespace: default
+  labels:
+    helm.sh/chart: prometheus-blackbox-exporter-5.8.2
+    app.kubernetes.io/name: prometheus-blackbox-exporter
+    app.kubernetes.io/instance: monitor
+    app.kubernetes.io/version: "0.20.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  blackbox.yaml: |
+    modules:
+      http_2xx:
+        http:
+          follow_redirects: true
+          preferred_ip_protocol: ip4
+          valid_http_versions:
+          - HTTP/1.1
+          - HTTP/2.0
+        prober: http
+        timeout: 5s
+---
+# Source: prometheus-blackbox-exporter/templates/role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    helm.sh/chart: prometheus-blackbox-exporter-5.8.2
+    app.kubernetes.io/name: prometheus-blackbox-exporter
+    app.kubernetes.io/instance: monitor
+    app.kubernetes.io/version: "0.20.0"
+    app.kubernetes.io/managed-by: Helm
+  name: monitor-prometheus-blackbox-exporter
+  namespace: default
+rules:
+  - apiGroups:
+    - policy
+    resources:
+    - podsecuritypolicies
+    resourceNames:
+    - monitor-prometheus-blackbox-exporter-psp
+    verbs:
+    - use
+---
+# Source: prometheus-blackbox-exporter/templates/rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    helm.sh/chart: prometheus-blackbox-exporter-5.8.2
+    app.kubernetes.io/name: prometheus-blackbox-exporter
+    app.kubernetes.io/instance: monitor
+    app.kubernetes.io/version: "0.20.0"
+    app.kubernetes.io/managed-by: Helm
+  name: monitor-prometheus-blackbox-exporter
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: monitor-prometheus-blackbox-exporter
+subjects:
+  - kind: ServiceAccount
+    name: monitor-prometheus-blackbox-exporter
+---
+# Source: prometheus-blackbox-exporter/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: monitor-prometheus-blackbox-exporter
+  namespace: default
+  labels:
+    helm.sh/chart: prometheus-blackbox-exporter-5.8.2
+    app.kubernetes.io/name: prometheus-blackbox-exporter
+    app.kubernetes.io/instance: monitor
+    app.kubernetes.io/version: "0.20.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9115
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: prometheus-blackbox-exporter
+    app.kubernetes.io/instance: monitor
+---
+# Source: prometheus-blackbox-exporter/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: monitor-prometheus-blackbox-exporter
+  namespace: default
+  labels:
+    helm.sh/chart: prometheus-blackbox-exporter-5.8.2
+    app.kubernetes.io/name: prometheus-blackbox-exporter
+    app.kubernetes.io/instance: monitor
+    app.kubernetes.io/version: "0.20.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-blackbox-exporter
+      app.kubernetes.io/instance: monitor
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: prometheus-blackbox-exporter-5.8.2
+        app.kubernetes.io/name: prometheus-blackbox-exporter
+        app.kubernetes.io/instance: monitor
+        app.kubernetes.io/version: "0.20.0"
+        app.kubernetes.io/managed-by: Helm
+      annotations:
+        checksum/config: 3e7c34a15ffca7b9be14d22df6ad311feb2d2dc770acbf777d2b82efff8ca3d1
+    spec:
+      automountServiceAccountToken: false
+      serviceAccountName: monitor-prometheus-blackbox-exporter
+      restartPolicy: Always
+      containers:      
+        - name: blackbox-exporter
+          image: "prom/blackbox-exporter:v0.20.0"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+          env:
+          args:
+            - "--config.file=/config/blackbox.yaml"
+          resources:
+            {}
+          ports:
+            - containerPort: 9115
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+          volumeMounts:
+            - mountPath: /config
+              name: config
+      hostNetwork: false
+      volumes:      
+        - name: config
+          configMap:
+            name: monitor-prometheus-blackbox-exporter
+---
+# Source: prometheus-blackbox-exporter/templates/servicemonitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: monitor-prometheus-blackbox-exporter-example
+  namespace: default
+  labels:
+    helm.sh/chart: prometheus-blackbox-exporter-5.8.2
+    app.kubernetes.io/name: prometheus-blackbox-exporter
+    app.kubernetes.io/instance: monitor
+    app.kubernetes.io/version: "0.20.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  endpoints:
+  - port: http
+    scheme: http
+    path: "/probe"
+    interval: 60s
+    scrapeTimeout: 60s
+    params:
+      module:
+      - http_2xx
+      target:
+      - http://example.com/healthz
+    metricRelabelings:
+      - sourceLabels: [instance]
+        targetLabel: instance
+        replacement: http://example.com/healthz
+      - sourceLabels: [target]
+        targetLabel: target
+        replacement: example
+  jobLabel: "monitor"
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-blackbox-exporter
+      app.kubernetes.io/instance: monitor
+  namespaceSelector:
+    matchNames:
+      - default
+
+NOTES:
+See https://github.com/prometheus/blackbox_exporter/ for how to configure Prometheus and the Blackbox Exporter.
+
+1. Get the application URL by running these commands:
+  export POD_NAME=$(kubectl get pods --namespace default -l "app.kubernetes.io/name=prometheus-blackbox-exporter,app.kubernetes.io/instance=monitor" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace default $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  echo "Visit http://127.0.0.1:8080 to use your application"
+  kubectl --namespace default port-forward $POD_NAME 8080:$CONTAINER_PORT

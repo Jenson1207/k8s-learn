@@ -1,0 +1,166 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: kube-prometheus
+data:
+  prometheus.rules: |-
+    groups:
+    - name: CPU     # CPU类告警,可用来划分不同的组,不同的组用来放不同的规则
+      rules:
+      - alert: HostHighCpuLoad    # 监控名称最后会在Prometheus的Alert的告警规则中生成一个alertname=HostHighCpuLoad的标签,如果在alertmanager中已altername来划分告警组的话，最后都会到一组去
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 1
+        for: 1s
+        labels:                   # 在alert rule中添加新的label，可以被后续的altermanager所使用到
+          type: CPU
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }} CPU使用率超标"
+          description: "{{ $labels.instance }} 主机CPU使用率为: {{ $value }}"
+      - alert: HostHighCpuLoad    # 严重警告，alertmanager中可以配置抑制
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 5
+        for: 1s
+        labels:                  
+          type: CPU
+          severity: critical
+        annotations:
+          summary: "{{ $labels.instance }} CPU使用率超标"
+          description: "{{ $labels.instance }} 主机CPU使用率为: {{ $value }}"
+    - name: ME      # Memory类告警
+      rules:
+      - alert: HostHighMemory
+        expr: 100 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100) > 10
+        for: 1s
+        labels:
+          type: ME
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }} 内存使用率超标"
+          description: "{{ $labels.instance }} 主机内存使用率为: {{ $value }}"
+  prometheus.yml: |-
+    global:
+      scrape_interval: 15s 
+      scrape_timeout: 10s
+      evaluation_interval: 1m
+    alerting:
+      alertmanagers:
+      - scheme: http
+        static_configs:
+        - targets:
+          - "alertmanager.kube-prometheus.svc:9093"
+    rule_files:
+    - /etc/prometheus/prometheus.rules
+    scrape_configs:
+    - job_name: 'kubenernetes-prometheus-server'
+      static_configs:
+      - targets: ['localhost:9090']
+      relabel_configs:
+      - source_labels: [instance]             # 将instance=localhost:9090 -> instance=prometheus-server:9090
+        regex: '(.*)'
+        replacement: 'prometheus-server:9090'
+        target_label: instance
+        action: replace
+    - job_name: 'kubernetes-node'
+      kubernetes_sd_configs:
+      - role: node
+      relabel_configs:
+      - source_labels: [__address__]          # 将__address__=192.168.0.10:10250 -> 192.168.0.10:9100,node_exporter默认是9100，且我已事先与宿主机共享网络空间了
+        regex: '(.*):10250'
+        replacement: '${1}:9100'
+        target_label: __address__
+        action: replace
+      - action: labelmap                 
+        regex: '__meta__kubernetes_node_label_(.+)'  # 保留__meta__kubernetes_node_label_标签后面的值作为新标签
+    - job_name: 'kubernetes-apiserver'
+      kubernetes_sd_configs:
+      - role: endpoints                              
+      scheme: https
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      relabel_configs:
+      - source_labels:
+          [
+            __meta_kubernetes_namespace,
+            __meta_kubernetes_service_name,
+            __meta_kubernetes_endpoint_port_name,
+          ]
+        action: keep
+        regex: default;kubernetes;https
+    - job_name: "kubernetes-cadvisor"
+      scheme: https
+      metrics_path: /metrics/cadvisor
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      authorization:
+        credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      kubernetes_sd_configs:
+      - role: node
+      relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)  # 保留匹配到的具有__meta_kubernetes_node_label的标签
+      - target_label: __address__                 # 获取到的地址:__address__="192.168.0.11:10250"
+        replacement: kubernetes.default.svc:443   # 把获取到的地址替换成新的地址kubernetes.default.svc:443
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __metrics_path__             # 获取 __metrics_ 对应的值
+        replacement: /api/v1/nodes/${1}/proxy/metrics/cadvisor # 把metrics替换成新的值,新的url就是: https://kubernetes.default.svc/api/v1/nodes/k8s-master-1/proxy/metrics/cadvisor
+      metric_relabel_configs:  # grafana 315 所需
+      - action: replace
+        source_labels: [id]
+        regex: '^/machine\.slice/machine-rkt\\x2d([^\\]+)\\.+/([^/]+)\.service$'
+        target_label: rkt_container_name
+        replacement: '${2}-${1}'
+      - action: replace
+        source_labels: [id]
+        regex: '^/system\.slice/(.+)\.service$'
+        target_label: systemd_service_name
+        replacement: '${1}'
+    - job_name: 'kubernetes-service-endpoints'
+      kubernetes_sd_configs:
+      - role: endpoints
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scraped] # 仅抓取到的具有"prometheus.io/scrape: true"的annotation的端点
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
+        action: replace
+        target_label: __scheme__
+        regex: (https?)
+      - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path] # 应用中自定义暴露的指标，也许你暴露的 API 接口不是 /metrics 这个路径，那么你可以在这个POD 对应的 service 中做一个 "prometheus.io/path = /mymetrics"声明
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+        action: replace
+        target_label: __address__
+        regex: ([^:]+)(?::\d+)?;(\d+)     # ; 对应 source_labels里面的
+        replacement: $1:$2                # 暴露自定义的应用的端口，就是把地址和你在 service 中定义的 "prom etheus.io/port=<port>" 声明做一个拼接然后赋值给 __ address__，这样 prometheus 就能获取自定义应用的端口，然后通过这个端口再结合 __metrics_ 来获 取 指标，如果 __metrics_ 值不是默认的 /metrics 那么就要使用上面的标签替换来获取真正暴露的具体路径
+      - action: labelmap
+        regex: __meta_kubernetes_service_label_(.+)
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: kubernetes_namespace
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: kubernetes_service_name 
+      metric_relabel_configs:             # grafana 13332 所需,kube-state-metrics
+      - target_label: cluster
+        replacement: kubernetes-service-endpoints
+    - job_name: 'kubernetes-proxy'
+      static_configs:
+      - targets: ['192.168.0.10:10249','192.168.0.11:10249']   # 默认可以通过HTTP方式访问：curl http://192.168.0.10:10249/metrics
+    - job_name: 'kubernetes-scheduler'
+      static_configs:
+      - targets: ['192.168.0.10:10251']                        # 10251 暴露指标
+    - job_name: 'kubernetes-controller-manager'
+      static_configs:
+      - targets: ['192.168.0.10:10252']
+    - job_name: 'kubernetes-etcd'
+      scheme: https
+      tls_config:                                              # 这些证书通过在kube-prometheus内创建secret方式挂载给prometheus-server使用
+        ca_file: /var/run/secrets/kubernetes.io/etcd/etcd-ca.pem
+        cert_file: /var/run/secrets/kubernetes.io/etcd/etcd.pem
+        key_file: /var/run/secrets/kubernetes.io/etcd/etcd-key.pem
+      static_configs:
+      - targets: ['192.168.0.10:2379']    # 默认本机可以通过localhost:2379/metrics 获取指标，但是如果以192.168.0.10:2379/mymetrics方式访问的话就需要提供证书了

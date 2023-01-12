@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: busybox-deployment-rollout
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: busybox
+  template:
+    metadata:
+      labels:
+        app: busybox
+    spec:
+      containers:
+      - name: busybox-2
+        image: busybox:1.28
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh","-c","sleep 10000"]

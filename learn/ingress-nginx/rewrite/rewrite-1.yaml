@@ -1,0 +1,20 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rewrite-test-1
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: www.rewrite-1.com
+    http: 
+      paths:
+      - backend:
+          service:
+            name: httpd-30
+            port:
+              name: http
+        path: /rewrite1(/|$)(.*)
+        pathType: Prefix

@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: 
+  name: jms-mysql
+  namespace: jms
+spec:
+  minReadySeconds: 30
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jms-mysql
+  template:
+    metadata:
+      name: jms-mysql
+      labels:
+        app: jms-mysql
+    spec:
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      containers:
+      - name: jms-mysql
+        image: jumpserver/mysql:5
+        imagePullPolicy: Never
+        env:
+        - name: MYSQL_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: jms-config
+              key: MYSQL_DATABASE
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: jms-secret
+              key: MYSQL_ROOT_PASSWORD
+        command: ["docker-entrypoint.sh"]
+        args: ["--character-set-server=utf8"]
+        readinessProbe:
+          periodSeconds: 10
+          failureThreshold: 3
+          successThreshold: 1
+          timeoutSeconds: 5
+          initialDelaySeconds: 30
+          exec: 
+            command: ["/bin/bash","-c","mysql -h127.0.0.1 -P$DB_PORT -uroot -p$MYSQL_ROOT_PASSWORD -e 'SHOW DATABASES;'"]
+        volumeMounts:
+        - name: jms-nfs
+          mountPath: /var/lib/mysql
+        - name: jms-my-cnf
+          mountPath: /etc/mysql
+      volumes:
+      - name: jms-nfs
+        nfs:
+          path: /Jumpserver/mysql
+          server: 192.168.0.55
+      - name: jms-my-cnf
+        configMap:
+          name: jms-config
+          items:
+          - key: my.cnf
+            path: my.cnf
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jms-mysql
+  namespace: jms
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: jms-mysql
+  ports:
+  - name: jms-mysql-3306
+    protocol: TCP
+    port: 3306
+    targetPort: 3306  
+  - name: jms-mysql-33060
+    protocol: TCP
+    port: 33060
+    targetPort: 33060

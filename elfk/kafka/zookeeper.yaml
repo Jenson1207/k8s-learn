@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-zookeeper
+  namespace: logging
+spec:    
+  type: NodePort
+  selector:
+    application: kafka-zookeeper
+  ports:
+  - port: 2181
+    targetPort: 2181
+    protocol: TCP
+    nodePort: 32181
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-zookeeper
+  namespace: logging
+  labels:
+    application: kafka-zookeeper
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      application: kafka-zookeeper
+  template:
+    metadata:
+      labels:
+        application: kafka-zookeeper
+    spec:
+      nodeName: k8s-master-1
+      containers:
+      - name: kafka-zookeeper
+        image: bitnami/zookeeper:3.8.0
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: ZOO_ENABLE_AUTH
+          value: "no"
+        - name: ALLOW_ANONYMOUS_LOGIN
+          value: "true"
+        - name: ZOO_PORT_NUMBER
+          value: "2181"
+        - name: ZOO_SERVER_ID
+          value: "1"
+        - name: ZOO_HEAP_SIZE
+          value: "1024"
+        - name: ZOO_ENABLE_PROMETHEUS_METRICS
+          value: "no"
+        - name: ZOO_LOG_LEVEL
+          value: "INFO"
+        ports:
+        - containerPort: 2181
+        volumeMounts:
+        - name: data
+          mountPath: /bitnami/zookeeper
+      volumes:
+      - name: data
+        hostPath:
+          path: /data/zookeeper
+---

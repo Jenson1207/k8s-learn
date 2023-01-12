@@ -1,0 +1,88 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: web
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: httpd-1
+  namespace: web
+spec:
+  selector:
+    matchLabels:
+      app: httpd-1
+      server: web
+  template:
+    metadata:
+      labels:
+        app: httpd-1
+        server: web
+    spec:
+      containers:
+      - name: busybox
+        image: busybox:1.28
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh","-c","echo 'httpd-1' >> /var/www/index.html; httpd -f -p 80 -h /var/www"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: httpd-2
+  namespace: web
+spec:
+  selector:
+    matchLabels:
+      app: httpd-2
+      server: web
+  template:
+    metadata:
+      labels:
+        app: httpd-2
+        server: web
+    spec:
+      containers:
+      - name: busybox
+        image: busybox:1.28
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh","-c","echo 'httpd-2' >> /var/www/index.html; httpd -f -p 80 -h /var/www"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpd-1
+  namespace: web
+spec:
+  selector:
+    app: httpd-1
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpd-2
+  namespace: web
+spec:
+  selector:
+    app: httpd-2
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpd
+  namespace: web
+spec:
+  selector:
+    server: web
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80

@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: busybox-red-blue
+spec:
+  minReadySeconds: 20
+  paused: false
+  progressDeadlineSeconds: 600
+  replicas: 10
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      autoupdate: busybox-red-blue
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      name: busybox-red-blue
+      namespace: default
+      labels:
+        autoupdate: busybox-red-blue
+    spec:
+      restartPolicy: Always
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+      containers:
+      - name: busybox
+        image: busybox:red
+        imagePullPolicy: IfNotPresent
+        command:
+        - "sleep"
+        - "86400"

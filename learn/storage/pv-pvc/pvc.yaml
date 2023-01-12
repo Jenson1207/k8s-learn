@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: my-pvc
+spec:
+  accessModes: ["ReadWriteMany"]
+  resources: #如果 Pod 运行所在的节点具有足够的可用资源，容器可能（且可以）使用超出对应资源 request 属性所设置的资源量。不过，容器不可以使用超出其资源 limit 属性所设置的资源量
+    requests:
+      storage: 100Gi
+

@@ -1,0 +1,82 @@
+- job_name: "ICMP-CHECK"    
+  metrics_path: /probe 
+  params:    
+    module: 
+    - icmp    
+  static_configs:    
+  - targets:    
+    - 192.168.0.10    
+    - 192.168.0.11
+    labels:
+      blackbox: icmp
+  relabel_configs:
+  - source_labels: [__address__]                         # 为params赋值target=[__address__],调整向blackbox请求的URL参数
+    target_label: __param_target
+  - target_label: __address__                            # 让prometheus去blackbox抓取信息
+    replacement: blackbox.monitor.svc.cluster.local:9115
+  - source_labels: [__param_target]                      # 將 instace 的值修改成 target 的值
+    target_label: instance
+- job_name: "TCP-CHECK"    
+  metrics_path: /probe 
+  params:    
+    module: 
+    - tcp_connect   
+  static_configs:    
+  - targets:    
+    - 192.168.0.10:22    
+    - 192.168.0.11:22
+    - 192.168.0.10:3306
+    - 192.168.0.10:6443
+    - 192.168.0.10:1250
+    - 192.168.0.10:2380
+    - 192.168.0.11:2380
+    - 192.168.0.10:2049
+    - 192.168.0.10:111
+    labels:
+      blackbox: tcp
+  relabel_configs:
+  - source_labels: [__address__]   
+    target_label: __param_target
+  - target_label: __address__     
+    replacement: blackbox.monitor.svc.cluster.local:9115
+  - source_labels: [__param_target] 
+#    regex: "(.*):(.*)"                                   # 聚合instance,将其与第一个job为一类,丢弃端口,grafana不做聚合，放弃这种方式
+#    replacement: $1
+    target_label: instance
+- job_name: "HTTP-CHECK"    
+  metrics_path: /probe 
+  params:    
+    module: 
+    - http_2xx    
+  static_configs:    
+  - targets:    
+    - http://www.baidu.com
+    - http://www.huya.com
+    - http://www.douyu.com
+    - http://www.bilibili.com
+    labels:
+      blackbox: http_2xx
+  relabel_configs:
+  - source_labels: [__address__]     
+    target_label: __param_target
+  - target_label: __address__         
+    replacement: blackbox.monitor.svc.cluster.local:9115
+  - source_labels: [__param_target]    
+    target_label: instance
+- job_name: "DNS-CHECK"    
+  metrics_path: /probe 
+  params:    
+    module: 
+    - dns_tcp
+  static_configs:    
+  - targets:    
+    - 10.0.0.10                                           # 集群内DNS服务器
+    labels:
+      blackbox: dns
+  relabel_configs:
+  - source_labels: [__address__]     
+    target_label: __param_target
+  - target_label: __address__         
+    replacement: blackbox.monitor.svc.cluster.local:9115
+  - source_labels: [__param_target]    
+    target_label: instance

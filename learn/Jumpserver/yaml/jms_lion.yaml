@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jms-lion
+  namespace: jms
+spec:
+  minReadySeconds: 10
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jms-lion
+  template:
+    metadata:
+      name: jms-lion
+      labels:
+        app: jms-lion
+    spec:
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      containers:
+      - name: jms-lion
+        image: jumpserver/lion:v2.20.0
+        imagePullPolicy: Never
+        tty: true
+        envFrom:
+        - configMapRef:
+            name: jms-core-config
+        readinessProbe:
+          periodSeconds: 10
+          failureThreshold: 3
+          successThreshold: 1
+          timeoutSeconds: 5
+          initialDelaySeconds: 10
+          exec:
+            command: ["/bin/sh","-c","curl -fsL http://localhost:8081/lion/health/ > /dev/null"]
+        volumeMounts:
+        - name: jms-nfs-lion
+          mountPath: /opt/lion/data
+      volumes:
+      - name: jms-nfs-lion
+        nfs:
+          path: /Jumpserver/lion/data
+          server: 192.168.0.55
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jms-lion
+  namespace: jms
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: jms-lion
+  ports:
+  - name: jms-lion-4822
+    protocol: TCP
+    port: 4822
+    targetPort: 4822
+  - name: jms-lion-8081 #dockerfile本身没有暴露该端口，但是由于nginx有流量转发到这里，所以开端口了
+    protocol: TCP
+    port: 8081
+    targetPort: 8081

@@ -1,0 +1,19 @@
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: busybox-httpd
+  namespace: circuit-break
+spec:
+  host: busybox-httpd.circuit-break.svc.cluster.local
+  trafficPolicy:
+    connectionPool: # 连接池(TCP|HTTP)配置,例如:连接数 并发请求等
+      http:
+        http1MaxPendingRequests: 1  # 连接到目标主机的最大挂起请求数,也就是待处理请求数,这里的目标指的是virtualservice路由规则中配置的 destination 。
+        maxRequestsPerConnection: 1 # 连接池中每个连接最多处理1个请求后就关闭，并根据需要重新创建连接池中的连接
+      tcp:
+        maxConnections: 1           # TCP连接池中的最大连接请求数,当超过这个值会返回503代码,如两个请求过来,就会有一个请求返回503
+    outlierDetection:               # 异常检测配置，传统意义上的熔断配置，即对规定时间内服务错误数的监测
+      baseEjectionTime: 3m          # 基本驱逐时间3分钟，实际驱逐时间为baseEjectionTime* 驱逐次数
+      consecutive5xxErrors: 1       # 连续错误数1 ，即连续返回502 504状态码的Http请求错误数
+      interval: 1s                  # 错误异常的扫描间隔1s,即在interval 1s内连续发生consecutiveGatewayErrors 1错误则触发服务熔断
+      maxEjectionPercent: 100       # 最大驱逐百分比 100%

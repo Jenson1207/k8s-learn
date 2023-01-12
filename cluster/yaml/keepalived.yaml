@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: keepalived
+spec:
+  selector:
+    matchLabels:
+      app: keepalived
+  template:
+    metadata:
+      labels:
+        app: keepalived
+    spec:
+      containers:
+      - name: keepalived
+        image: osixia/keepalived:2.0.20-amd64
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+        - mountPath: /usr/local/etc/keepalived/keepalived.conf
+          name: cnf
+        securityContext:
+          capabilities:
+            add:
+            - NET_ADMIN
+            - NET_BROADCAST
+            - NET_RAW
+          runAsUser: 0
+      dnsPolicy: ClusterFirst
+      hostNetwork: true
+      restartPolicy: Always
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+        operator: Exists
+      volumes:
+      - name: cnf
+        hostPath:
+          path: /etc/keepalived/keepalived.conf

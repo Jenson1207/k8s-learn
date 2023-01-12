@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-lb
+spec:
+  selector:
+    matchLabels:
+      app: nginx-lb
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: nginx-lb
+    spec:
+      nodeName: k8s-node-1
+      hostNetwork: true
+      containers:
+      - name: nginx
+        image: nginx:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+        volumeMounts: 
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+          limits:
+            cpu: 1
+            memory: 1Gi
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: nginx-config
+          items:
+          - key: nginx.conf
+            path: nginx.conf
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-lb
+spec:
+  selector:
+    app: nginx-lb
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+    nodePort: 40001
+  type: NodePort
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+    name: nginx-config
+data:
+  nginx.conf: |
+    user  nginx;
+    worker_processes  1;
+    error_log  /var/log/nginx/error.log warn;
+    pid        /var/run/nginx.pid;
+    events {
+        worker_connections  1024;
+    }
+    stream {
+        log_format proxy '$remote_addr [$time_local] '
+                 '$protocol $status $bytes_sent $bytes_received '
+                 '$session_time "$upstream_addr" '
+                 '"$upstream_bytes_sent" "$upstream_bytes_received" "$upstream_connect_time"';
+        access_log  /var/log/nginx/access.log  proxy;
+        upstream backend {
+                server 192.168.0.10:40003;
+        }
+        server {
+                listen 80;
+                proxy_connect_timeout 5s;
+                proxy_timeout 10s;
+                proxy_pass backend;
+        }
+    }
+#                proxy_protocol on;

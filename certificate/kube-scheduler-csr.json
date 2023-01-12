@@ -1,0 +1,20 @@
+{
+    "CN": "system:kube-scheduler",
+    "hosts": [
+      "127.0.0.1",
+      "192.168.0.10"
+    ],
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+      {
+        "C": "CN",
+        "ST": "hunan",
+        "L": "changsha",
+        "O": "system:kube-scheduler",
+        "OU": "system"
+      }
+    ]
+}

@@ -1,0 +1,66 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: httpd-30
+spec:
+  selector:
+    matchLabels:
+      app: httpd-30
+      type: http
+  template:
+    metadata:
+      labels:
+        app: httpd-30
+        type: http
+    spec:
+      containers:
+      - name: busybox
+        image: busybox:1.28
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh","-c","echo 'httpd-30' >> /var/www/index.html; httpd -f -p 80 -h /var/www"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: httpd-70
+spec:
+  selector:
+    matchLabels:
+      app: httpd-70
+      type: http
+  template:
+    metadata:
+      labels:
+        app: httpd-70
+        type: http
+    spec:
+      containers:
+      - name: busybox
+        image: busybox:1.28
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh","-c","echo 'httpd-70' >> /var/www/index.html; httpd -f -p 80 -h /var/www"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpd-30
+spec:
+  selector:
+    app: httpd-30
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpd-70
+spec:
+  selector:
+    app: httpd-70
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80

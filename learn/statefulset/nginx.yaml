@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+spec:
+  clusterIP: None
+  selector:
+    app: nginx
+  ports:
+  - name: web
+    port: 80
+    protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: web
+spec:
+  podManagementPolicy: OrderedReady  #pod名-> 0-N,删除N->0
+  replicas: 2
+  revisionHistoryLimit: 10
+  serviceName: nginx
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:  #name没写，会默认生成的
+      labels:  
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: web #填vcp名字
+          mountPath: /usr/share/nginx/test
+  volumeClaimTemplates:
+  - metadata:
+      name: web
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: nginx-nfs
+      volumeMode: Filesystem
+      resources:
+        requests:
+          storage: 512M

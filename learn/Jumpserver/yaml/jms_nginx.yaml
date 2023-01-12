@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jms-nginx
+  namespace: jms
+spec:
+  minReadySeconds: 180
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jms-nginx
+  template:
+    metadata:
+      name: jms-nginx
+      labels:
+        app: jms-nginx
+    spec:
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      containers:
+      - name: jms-nginx
+        image: jumpserver/web:v2.20.0
+        imagePullPolicy: Never
+        tty: true
+        readinessProbe:
+          periodSeconds: 10
+          failureThreshold: 3
+          successThreshold: 1
+          timeoutSeconds: 5
+          initialDelaySeconds: 50
+          exec:
+            command: ["/bin/sh","-c","curl -fsL http://localhost/ > /dev/null"]
+        volumeMounts:
+        - name: jms-core-data
+          mountPath: /opt/jumpserver/data
+        - name: jms-nginx-logs
+          mountPath: /var/log/nginx
+        - name: jms-nginx-config
+          mountPath: /etc/nginx/conf.d/default.conf
+          subPath: nginx.conf
+      volumes:
+      - name: jms-core-data
+        nfs:
+          path: /Jumpserver/core/data
+          server: 192.168.0.55
+      - name: jms-nginx-logs
+        nfs:
+          path: /Jumpserver/nginx/data/logs
+          server: 192.168.0.55
+      - name: jms-nginx-config
+        configMap:
+          name: jms-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jms-nginx
+  namespace: jms
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: jms-nginx
+  ports:
+  - name: jms-nginx
+    protocol: TCP
+    port: 80
+    targetPort: 80

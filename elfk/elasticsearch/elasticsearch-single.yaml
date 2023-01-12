@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elasticsearch-single-node
+  namespace: logging
+spec:
+  selector:
+    matchLabels:
+      application: elasticsearch
+  template:
+    metadata:
+      labels:
+        application: elasticsearch
+    spec:
+      nodeName: k8s-master-1
+      initContainers:
+      - name: set-vm-sync-limit
+        image: docker.io/library/busybox:1.28
+        imagePullPolicy: IfNotPresent
+        command: ["sysctl", "-w", "vm.max_map_count=262144"]
+        securityContext:
+          privileged: true
+      containers:
+      - name: elasticsearch
+#        command: ["/bin/bash","-c","sleep 10000"]
+        image: docker.io/library/elasticsearch:8.5.3
+        env:
+        - name: discovery.type
+          value: "single-node"
+        - name: ES_JAVA_OPTS
+          value: "-Xms1g -Xmx1g"
+        - name: xpack.security.enabled
+          value: "false"
+        ports:
+        - containerPort: 9200
+          name: http
+          protocol: TCP
+        volumeMounts:
+        - name: data
+          mountPath: /usr/share/elasticsearch/data
+        - name: time
+          mountPath: /etc/localtime
+          readOnly: true
+      volumes:
+      - name: data
+        hostPath:
+          path: /data/elasticsearch
+      - name: time
+        hostPath:
+          path: /etc/localtime
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch
+  namespace: logging
+spec:
+  type: NodePort
+  ports:
+    - port: 9200
+      targetPort: 9200
+      protocol: TCP
+      nodePort: 30150
+  selector:
+    application: elasticsearch

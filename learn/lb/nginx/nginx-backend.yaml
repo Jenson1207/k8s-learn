@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-backend
+spec:
+  selector:
+    matchLabels:
+      app: nginx-backend
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: nginx-backend
+    spec:
+      nodeName: k8s-master-1
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-backend
+spec:
+  selector:
+    app: nginx-backend
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+    nodePort: 40003
+  type: NodePort

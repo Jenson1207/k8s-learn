@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: busybox-httpd
+  namespace: kong
+spec:
+  selector:
+    matchLabels:
+      application: busybox-httpd
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        application: busybox-httpd
+    spec:
+      containers:
+      - name: busybox
+        image: busybox:1.28
+        command: ["/bin/sh","-c"]
+        args: # 生成随机网页
+        - |
+          head -c 16 /dev/urandom | od -An -t x | tr -d ' ' > /var/www/index.html ;
+          httpd -f -h /var/www/ ;
+        ports:
+        - name: httpd
+          containerPort: 80
+          protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: busybox-httpd
+  namespace: kong
+spec:
+  ports:
+  - name: httpd
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    application: busybox-httpd

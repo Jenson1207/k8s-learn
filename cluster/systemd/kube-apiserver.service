@@ -1,0 +1,62 @@
+[Unit]
+Description=Kubernetes API Server
+Documentation=https://github.com/kubernetes/kubernetes
+After=etcd.service
+Wants=etcd.service
+ 
+[Service]
+ExecStart=/usr/bin/kube-apiserver \
+    --enable-admission-plugins=NamespaceLifecycle,NodeRestriction,LimitRanger,ServiceAccount,DefaultStorageClass,DefaultTolerationSeconds,ResourceQuota,MutatingAdmissionWebhook,ValidatingAdmissionWebhook \
+    --anonymous-auth=false \
+    --bind-address=192.168.0.10 \
+    --secure-port=6443 \
+    --advertise-address=192.168.0.10 \
+    --insecure-port=0 \
+    --authorization-mode=Node,RBAC \
+    --runtime-config=api/all=true \
+    --enable-bootstrap-token-auth \
+    --enable-aggregator-routing=true \
+    --feature-gates=EphemeralContainers=true \
+    --token-auth-file=/etc/kubernetes/token.csv \
+    --service-cluster-ip-range=10.0.0.0/16 \
+    --service-node-port-range=30000-50000 \
+    --service-account-key-file=/etc/kubernetes/ssl/service.pub \
+    --service-account-signing-key-file=/etc/kubernetes/ssl/service.key \
+    --service-account-issuer=https://kubernetes.default.svc.cluster.local \
+    --tls-cert-file=/etc/kubernetes/ssl/kube-apiserver.pem  \
+    --tls-private-key-file=/etc/kubernetes/ssl/kube-apiserver-key.pem \
+    --client-ca-file=/etc/kubernetes/ssl/kube-apiserver-ca.pem \
+    --kubelet-client-certificate=/etc/kubernetes/ssl/kube-apiserver.pem \
+    --kubelet-client-key=/etc/kubernetes/ssl/kube-apiserver-key.pem \
+    --etcd-cafile=/etc/etcd/ssl/etcd-ca.pem \
+    --etcd-certfile=/etc/etcd/ssl/etcd.pem \
+    --etcd-keyfile=/etc/etcd/ssl/etcd-key.pem \
+    --etcd-servers=https://192.168.0.10:2379 \
+    --requestheader-client-ca-file=/etc/kubernetes/ssl/front-proxy-ca.pem \
+    --requestheader-allowed-names=front-proxy-client   \
+    --requestheader-extra-headers-prefix=X-Remote-Extra-  \
+    --requestheader-group-headers=X-Remote-Group     \
+    --requestheader-username-headers=X-Remote-User   \
+    --proxy-client-cert-file=/etc/kubernetes/ssl/front-proxy-client.pem  \
+    --proxy-client-key-file=/etc/kubernetes/ssl/front-proxy-client-key.pem    \
+    --enable-swagger-ui=true \
+    --allow-privileged=true \
+    --apiserver-count=1 \
+    --audit-log-maxage=30 \
+    --audit-log-maxbackup=3 \
+    --audit-log-maxsize=100 \
+    --audit-log-path=/var/log/kube-apiserver-audit.log \
+    --event-ttl=1h \
+    --alsologtostderr=true \
+    --logtostderr=false \
+    --log-dir=/var/log/kubernetes \
+    --v=2
+    
+Restart=on-failure
+RestartSec=5
+Type=notify
+LimitNOFILE=65536
+ 
+[Install]
+WantedBy=multi-user.target
+

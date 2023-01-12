@@ -1,0 +1,46 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: server
+  namespace: monitor
+spec:
+  image: prom/prometheus:v2.36.2
+  nodeSelector: 
+    kubernetes.io/hostname: "k8s-master-1"
+  serviceMonitorSelector:
+    matchLabels:
+      application: "prometheus"
+  probeSelector:
+    matchLabels:
+      application: "prometheus"
+  serviceAccountName: prometheus-server
+  additionalScrapeConfigs:
+    name: blackbox
+    key: blackbox-config.yaml
+  storage:
+    volumeClaimTemplate: #如果配置了这个，prometheus-server的存储就会保存在这里
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1    
+kind: Service    
+metadata:    
+  name: prometheus-server    
+  namespace: monitor    
+  labels:    
+    application: "prometheus-server"    
+spec:    
+  selector:    
+    prometheus: server    
+  type: NodePort    
+  ports:    
+  - name: metrics    
+    port: 9090    
+    targetPort: 9090    
+    protocol: TCP    
+    nodePort: 39090   

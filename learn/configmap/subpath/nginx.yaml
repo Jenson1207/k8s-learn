@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx
+data:
+  example.1: hello      # key-value键值对
+  example.2: hello
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+spec:
+  containers:
+    - name: nginx
+      image: nginx
+      volumeMounts:
+        - name: nginx-volume
+          mountPath: /etc/nginx/test.html                # 容器挂载目录
+          subPath: example.1                             # 将key名称作为文件名，hello作为文件内容
+  volumes:
+    - name: nginx-volume
+      configMap:
+         name: nginx      # 指定使用哪个CM

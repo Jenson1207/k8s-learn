@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata: 
+  name: busybox-test
+spec:
+  restartPolicy: OnFailure
+  dnsPolicy: ClusterFirstWithHostNet
+  hostNetwork: true
+  containers:
+  - name: busybox
+    image: busybox:1.28
+    imagePullPolicy: IfNotPresent
+    command:
+    - "sleep"
+    - "600"
+

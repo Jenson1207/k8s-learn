@@ -1,0 +1,57 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: node-exporter
+  namespace: monitor
+  labels:
+    application: "prometheus"
+spec:
+  namespaceSelector:
+    matchNames: ["monitor"]
+    #any: true
+  selector:
+    matchLabels: #要所有标签都满足才能匹配
+      application: "node-exporter"
+  endpoints:
+  - interval: "15s"
+    path: /metrics
+    port: metrics
+    scheme: HTTP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: prometheus-server
+  namespace: monitor
+  labels:
+    application: "prometheus"
+spec:
+  namespaceSelector:
+    matchNames: ["monitor"]
+  selector:
+    matchLabels:
+      application: "prometheus-server"
+  endpoints:
+  - interval: "15s"
+    path: /metrics
+    port: metrics
+    scheme: HTTP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kubelet
+  namespace: monitor
+  labels:
+    application: "prometheus"
+spec:
+  namespaceSelector:
+    matchNames: ["monitor"]
+  selector:
+    matchLabels:
+      application: "kubelet"
+  endpoints:
+  - interval: "15s"
+    path: /metrics
+    port: http-metrics
+    scheme: HTTP

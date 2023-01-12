@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jms-redis
+  namespace: jms
+spec:
+  minReadySeconds: 30
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jms-redis
+  template:
+    metadata:
+      name: jms-redis
+      labels:
+        app: jms-redis
+    spec:
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      containers:
+      - name: jms-redis
+        image: jumpserver/redis:6-alpine
+        imagePullPolicy: Never
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: jms-secret
+              key: REDIS_PASSWORD
+        command: ["/bin/sh","-c","redis-server /etc/redis.conf --requirepass $REDIS_PASSWORD"]
+        readinessProbe:
+          periodSeconds: 10
+          failureThreshold: 3
+          successThreshold: 1
+          timeoutSeconds: 5
+          initialDelaySeconds: 10
+          exec:
+            command: ["/bin/sh","-c","redis-cli -h 127.0.0.1 -p 6379 -a $REDIS_PASSWORD info Replication"]
+        volumeMounts:
+        - name: jms-nfs
+          mountPath: /data
+        - name: jms-redis-config
+          mountPath: /etc/redis.conf
+          subPath: redis.conf
+      volumes:
+      - name: jms-nfs
+        nfs:
+          path: /Jumpserver/redis
+          server: 192.168.0.55
+      - name: jms-redis-config
+        configMap:
+          name: jms-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jms-redis
+  namespace: jms
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: jms-redis
+  ports:
+  - protocol: TCP
+    port: 6379
+    targetPort: 6379

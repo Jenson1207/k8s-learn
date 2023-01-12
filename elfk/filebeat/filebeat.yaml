@@ -1,0 +1,369 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filebeat-config
+  namespace: kube-system
+  labels:
+    k8s-app: filebeat
+data:
+  filebeat.yml: |-
+    # 将filebeat input分开配置，支持热加载
+    filebeat.config.inputs:
+      enabled: true
+      # path.config = filebeat命令所在路径
+      path: ${path.config}/inputs.d/filebeat-input-*.yml
+      reload.enabled: true
+      reload.period: 10s    
+    # filebeat module配置
+    filebeat.config.modules:
+      enabled: true
+      path: ${path.config}/modules.d/filebeat-module-*.yml
+      reload.enabled: true
+      reload.period: 10s
+    output.console:
+      pretty: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filebeat-modules
+  namespace: kube-system
+  labels:
+    k8s-app: filebeat
+data:
+  filebeat-module-nginx.yml: |
+  #  - module: nginx
+  #    access:
+  #      enabled: false
+  #      var.paths: ["/var/log/nginx/access.log"]
+  #    error:
+  #      enabled: false
+  #      var.paths: ["/var/log/nginx/error.log"]
+  
+  # 这个模块不好用
+  #  - module: nginx
+  #    ingress_controller:
+  #      enabled: true
+  #      var.paths: ["/var/log/containers/ingress-nginx-controller*.log"]
+  # filebeat 该模块不好用,实际没有效果
+  #filebeat-module-coredns.yml: | 
+  #  - module: coredns
+  #    log:
+  #      enabled: true
+  #      var.paths: ["/var/log/containers/coredns*.log"]
+  #      var.tags: ["coredns", "staging"]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filebeat-inputs
+  namespace: kube-system
+  labels:
+    k8s-app: filebeat
+data:
+  filebeat-input-ingress-nginx.yml: | 
+    - type: container
+      # 日志路径
+      paths:
+      #- /var/log/containers/ingress-nginx-controller*.log
+      - /var/log/containers/cnm*.log
+
+      # 从标准错误/正常输出获取信息
+      stream: all          # all|stdout|stderr
+
+      # 以DBG打头的日志,不收集
+      #exclude_lines: ['^DBG']
+
+      # 只收集以ERR/WARN打头的日志
+      #include_lines: ['^ERR', '^WARN']
+      
+      #每个收集器在获取文件时使用的缓冲区大小（以字节为单位）。默认值为 16384
+      harvester_buffer_size: 16384
+
+      # 单个日志消息可以具有的最大字节数。之后的所有字节 max_bytes都被丢弃而不发送。此设置对于可能会变大的多行日志消息特别有用。默认值为 10MB (10485760)
+      max_bytes: 10485760
+
+      # keys_under_root可以让字段位于根节点，默认为false
+      #json.keys_under_root: false
+      # 对于同名的key，覆盖原有key值
+      #json.overwrite_keys: false
+      # message_key是用来合并多行json日志使用的，如果配置该项还需要配置multiline的设置,如果指定，键必须位于 JSON 对象的顶层，并且与键关联的值必须是字符串
+      #json.message_key: message
+      # 如果启用此设置，则在出现JSON解组错误或配置中定义了message_key但无法使用的情况下，Filebeat将添加“error.message”和“error.type：json”键
+      #json.add_error_key: false
+      # 如果启用此设置，Filebeat 将递归地去除已解码 JSON 中的点键，并将它们展开为分层对象结构。例如，{"a.b.c": 123}将扩展为{"a":{"b":{"c":123}}}. 当输入由 ECS 记录器生成时，应启用此设置
+      #json.expand_keys: false
+      # 一个可选的配置设置，指定是否应记录 JSON 解码错误。如果设置为 true，则不会记录错误。默认为假
+      #json.ignore_decoding_error: false
+
+      # 多行日志配置
+      multiline:
+        type: pattern
+        pattern: '^.*'
+        negate: false
+        match: after
+
+      # 排除哪些文件
+      exclude_files: ['\.gz$']
+
+      # 忽略2h小时前的修改
+      ignore_older: 2h
+
+      # 如果在指定的持续时间内未收集文件，Filebeat 将关闭文件句柄。当收割机读取最后一行日志时，定义时间段的计数器开始计时。它不是基于文件的修改时间。
+      # 我们建议您设置close_inactive一个大于日志文件最不频繁更新的值。例如，如果您的日志文件每隔几秒更新一次，您可以安全地设置close_inactive为1m
+      # 设置close_inactive为较低的值意味着文件句柄会更快关闭。然而，这有副作用，如果收割机关闭，新的日志行不会近乎实时地发送
+      # 您可以使用 2h（2 小时）和 5m（5 分钟）等时间字符串。默认值为 5m
+      close_inactive: 5m
+      # 如果close_renamed启用该选项并且文件被重命名或移动的方式使其不再与为路径指定的文件模式匹配，则该文件将不会被再次拾取。Filebeat 不会完成读取文件
+      close_renamed: true
+      # 启用此选项后，Filebeat 会在删除文件时关闭收集器。通常情况下，文件只有在 .指定的持续时间内处于非活动状态后才应删除close_inactive。但是，如果一个文件被提前删除并且您没有启用close_removed，Filebeat 会保持文件打开以确保收割机已经完成
+      close_removed: true
+      # 启用此选项后，Filebeat 会在到达文件末尾时立即关闭文件。当您的文件只写入一次并且不时更新时，这很有用
+      close_eof: false
+      # 启用此选项后，Filebeat 会为每个收集器提供预定义的生命周期。无论读者在文件中的什么位置，阅读都将在该close_timeout时间段结束后停止。当您只想在文件上花费预定义的时间量时，此选项对于较旧的日志文件很有用
+      close_timeout: 0
+
+      # 启用此选项后，Filebeat 会在指定的不活动时间过后删除文件的状态。ignore_older仅当文件已被 Filebeat 忽略（文件早于）时，才能删除状态 。该clean_inactive设置必须大于ignore_older + scan_frequency以确保在仍在收集文件时不会删除任何状态。否则，该设置可能会导致 Filebeat 不断重新发送完整内容
+      # 配置选项对于clean_inactive减小注册表文件的大小很有用，尤其是在每天生成大量新文件的情况下
+      # 每次重命名文件时，文件状态都会更新并且计数器clean_inactive再次从 0 开始
+      clean_inactive: 24h
+      # 启用此选项后，如果在磁盘上找不到最后一个已知名称的文件，Filebeat 会从注册表中清除这些文件。这意味着在收割机完成后重命名的文件也将被删除。默认情况下启用此选项
+      # 如果禁用这个选项，必须同时禁用close_removed
+      clean_removed: true
+      # Filebeat 多久检查一次指定用于收集的路径中的新文件。例如，如果您指定一个 glob，如/var/log/*，将使用 指定的频率扫描目录中的文件 scan_frequency。指定 1s 会尽可能频繁地扫描目录，而不会导致 Filebeat 扫描过于频繁。我们不建议设置此值<1s
+      # 如果您需要近乎实时地发送日志行，请不要使用非常低的 值scan_frequency，而是进行调整close_inactive，以便文件处理程序保持打开状态并不断轮询您的文件
+      # 默认设置为 10 秒
+      scan_frequency: 10s
+
+      # 如果此选项设置为 true，Filebeat 在每个文件的末尾而不是开头开始读取新文件。当此选项与日志轮换结合使用时，可能会跳过新文件中的第一个日志条目。默认设置为假
+      tail_files: false
+
+      # 该symlinks选项允许 Filebeat 除常规文件外还收集符号链接。收集符号链接时，Filebeat 打开并读取原始文件，
+      symlinks: true
+
+      # 退避选项指定 Filebeat 为更新抓取打开文件的积极程度。在大多数情况下，您可以使用默认值
+      # 该backoff选项定义了 Filebeat 在到达 EOF 后再次检查文件之前等待的时间。默认值为 1s，这意味着如果添加了新行，文件将每秒检查一次。这使得近乎实时的爬行成为可能。每次文件中出现新行时，该backoff值都会重置为初始值。默认值为 1 秒
+      backoff: 1s
+      # 达到 EOF 后 Filebeat 在再次检查文件之前等待的最长时间。多次退出检查文件后，max_backoff无论为 指定什么 ，等待时间都不会超过backoff_facto
+      # 要求：设置max_backoff为大于等于backoff且小于等于scan_frequency（backoff <= max_backoff <= scan_frequency）。如果max_backoff需要更高，建议关闭文件处理程序，让 Filebeat 重新拾取文件
+      max_backoff: 10s
+      # 此选项指定等待时间增加的速度。退避因子越大，达到该max_backoff值的速度就越快。退避因子呈指数增长。允许的最小值为 1。如果此值设置为 1，则禁用退避算法，并且该backoff值用于等待新行。backoff每次达到backoff_factoruntil时，该值都会相乘max_backoff。默认值为 2
+      backoff_factor: 1
+      # 该harvester_limit选项限制了为一个输入并行启动的收集器的数量。这直接关系到打开的文件处理程序的最大数量。默认为harvester_limit0，表示没有限制
+      harvester_limit: 0
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: filebeat
+  namespace: kube-system
+  labels:
+    k8s-app: filebeat
+spec:
+  selector:
+    matchLabels:
+      k8s-app: filebeat
+  template:
+    metadata:
+      labels:
+        k8s-app: filebeat
+    spec:
+      serviceAccountName: filebeat
+      terminationGracePeriodSeconds: 30
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+      - name: filebeat
+        image: docker.elastic.co/beats/filebeat:8.5.3
+        args: [
+          "-c", "/etc/filebeat.yml",
+          "-e",
+        ]
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        securityContext:
+          runAsUser: 0
+          # If using Red Hat OpenShift uncomment this:
+          #privileged: true
+        resources:
+          limits:
+            memory: 200Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        volumeMounts:
+        - name: config
+          mountPath: /etc/filebeat.yml
+          readOnly: true
+          subPath: filebeat.yml
+        - name: inputs-config
+          readOnly: true
+          mountPath: /usr/share/filebeat/inputs.d
+        - name: modules-config
+          readOnly: true
+          mountPath: /usr/share/filebeat/modules.d
+        - name: data
+          mountPath: /usr/share/filebeat/data
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+        - name: varlog
+          mountPath: /var/log
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          defaultMode: 0640
+          name: filebeat-config
+      - name: inputs-config
+        configMap:
+          defaultMode: 0640
+          name: filebeat-inputs
+      - name: modules-config
+        configMap:
+          defaultMode: 0640
+          name: filebeat-modules
+      - name: varlibdockercontainers
+        hostPath:
+          path: /var/log/containers
+      - name: varlog
+        hostPath:
+          path: /var/log
+      # data folder stores a registry of read status for all files, so we don't send everything again on a Filebeat pod restart
+      - name: data
+        hostPath:
+          # When filebeat runs as non-root user, this directory needs to be writable by group (g+w).
+          path: /var/lib/filebeat-data
+          type: DirectoryOrCreate
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: filebeat
+subjects:
+- kind: ServiceAccount
+  name: filebeat
+  namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: filebeat
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: filebeat
+  namespace: kube-system
+subjects:
+  - kind: ServiceAccount
+    name: filebeat
+    namespace: kube-system
+roleRef:
+  kind: Role
+  name: filebeat
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: filebeat-kubeadm-config
+  namespace: kube-system
+subjects:
+  - kind: ServiceAccount
+    name: filebeat
+    namespace: kube-system
+roleRef:
+  kind: Role
+  name: filebeat-kubeadm-config
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: filebeat
+  labels:
+    k8s-app: filebeat
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources:
+  - namespaces
+  - pods
+  - nodes
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups: ["apps"]
+  resources:
+    - replicasets
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["batch"]
+  resources:
+    - jobs
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: filebeat
+  # should be the namespace where filebeat is running
+  namespace: kube-system
+  labels:
+    k8s-app: filebeat
+rules:
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs: ["get", "create", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: filebeat-kubeadm-config
+  namespace: kube-system
+  labels:
+    k8s-app: filebeat
+rules:
+  - apiGroups: [""]
+    resources:
+      - configmaps
+    resourceNames:
+      - kubeadm-config
+    verbs: ["get"]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: filebeat
+  namespace: kube-system
+  labels:
+    k8s-app: filebeat
+---
+#    filebeat.inputs:
+#    - type: container
+#      paths:
+#      - /var/log/containers/ingress-nginx-*.log
+#      processors:
+#      - add_kubernetes_metadata:
+#          host: ${NODE_NAME}
+#          add_resource_metadata:
+#            namespace:
+#              include_labels: ["kubernetes.io/metadata.name"]
+#              labels.dedot: true
+#              annotations.dedot: true
+#            node: 
+#              include_labels: ["kubernetes.io/hostname"]
+#              include_annotations: ["flannel.alpha.coreos.com/backend-type"]
+#            deployment: false
+#            cronjob: false
+#          indexers:
+#          - pod_name:
+#          matchers:
+#          - logs_path:
+#              logs_path: "/var/log/containers/"
+#            resource_type: "container"

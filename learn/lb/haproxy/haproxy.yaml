@@ -1,0 +1,73 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: haproxy-lb
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+    nodePort: 40002
+  selector:
+    app: haproxy-lb
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: haproxy-lb
+spec: 
+  replicas: 1
+  selector:
+    matchLabels:
+      app: haproxy-lb
+  template:
+    metadata:
+      labels:
+        app: haproxy-lb
+    spec:
+      nodeName: k8s-node-1
+      hostNetwork: true
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+      containers:
+      - image: haproxy:2.6.6
+        imagePullPolicy: IfNotPresent
+        name: haproxy
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+          limits:
+            cpu: 1
+            memory: 1Gi
+        volumeMounts:
+        - mountPath: /usr/local/etc/haproxy/haproxy.cfg
+          name: haproxy-config
+          subPath: haproxy.cfg
+        securityContext:
+          privileged: true
+      volumes:
+      - name: haproxy-config
+        configMap:
+          name: haproxy-config
+          items:
+          - key: haproxy.cfg
+            path: haproxy.cfg
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+    name: haproxy-config
+data:
+  haproxy.cfg: |
+    listen backend
+        bind 0.0.0.0:80 
+        mode tcp
+        balance roundrobin
+        server backend1 192.168.0.10:40003 check inter 5s fall 1 rise 3

@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jms-celery
+  namespace: jms
+spec:
+  minReadySeconds: 30
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jms-celery
+  template:
+    metadata:
+      name: jms-celery
+      labels:
+        app: jms-celery
+    spec:
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      containers:
+      - name: jms-celery
+        image: jumpserver/core:v2.20.0
+        imagePullPolicy: Never
+        tty: true
+        envFrom:
+        - configMapRef:
+            name: jms-core-config
+        command: ["/bin/bash","-c","python jms start task"] #command默认没带shell环境
+        readinessProbe:
+          periodSeconds: 10
+          failureThreshold: 3
+          successThreshold: 1
+          timeoutSeconds: 5
+          initialDelaySeconds: 30
+          exec:
+            command: ["/bin/bash","-c","bash /opt/jumpserver/utils/check_celery.sh"]
+        volumeMounts:
+        - name: jms-nfs-data
+          mountPath: /opt/jumpserver/data
+        - name: jms-nfs-logs
+          mountPath: /opt/jumpserver/logs
+      volumes:
+      - name: jms-nfs-data
+        nfs:
+          path: /Jumpserver/core/data
+          server: 192.168.0.55
+      - name: jms-nfs-logs
+        nfs:
+          path: /Jumpserver/core/logs
+          server: 192.168.0.55
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jms-celery
+  namespace: jms
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: jms-celery
+  ports:
+  - name: jms-celery-8070
+    protocol: TCP
+    port: 8070
+    targetPort: 8070
+  - name: jms-celery-8080
+    protocol: TCP
+    port: 8080
+    targetPort: 8080

@@ -1,0 +1,13 @@
+[Unit]
+Description=Kubernetes Kubelet
+Documentation=https://github.com/kubernetes/kubernetes
+After=docker.service
+Requires=docker.service
+[Service]
+WorkingDirectory=/var/lib/kubelet
+ExecStart=/usr/bin/kubelet     --bootstrap-kubeconfig=/etc/kubernetes/kubelet-bootstrap.kubeconfig     --cert-dir=/etc/kubernetes/ssl     --kubeconfig=/etc/kubernetes/kubelet.kubeconfig     --config=/etc/kubernetes/kubelet.json     --network-plugin=cni     --pod-infra-container-image=registry.aliyuncs.com/google_containers/pause:3.6     --feature-gates=RotateKubeletClientCertificate=true,RotateKubeletServerCertificate=true,EphemeralContainers=true     --rotate-certificates=true     --alsologtostderr=true     --logtostderr=false     --log-dir=/var/log/kubernetes     --v=2
+Restart=on-failure
+RestartSec=5
+ 
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Pod
+metadata:
+    name: mount-bidir-a
+spec:
+    containers:
+    - name: busybox
+      image: busybox:1.28
+      command: ["/bin/sh","-c","sleep 300000"]
+      volumeMounts:
+      - name: testmount
+        mountPath: /mnt
+        mountPropagation: Bidirectional
+      securityContext:
+        privileged: true
+    volumes:
+    - name: testmount
+      hostPath:
+        path: /data/mounttest
+---
+apiVersion: v1
+kind: Pod
+metadata:
+    name: mount-bidir-b
+spec:
+    containers:
+    - name: busybox
+      image: busybox:1.28
+      command: ["/bin/sh","-c","sleep 300000"]
+      volumeMounts:
+      - name: testmount
+        mountPath: /mnt
+        mountPropagation: Bidirectional
+      securityContext:
+        privileged: true
+    volumes:
+    - name: testmount
+      hostPath:
+        path: /data/mounttest
+---

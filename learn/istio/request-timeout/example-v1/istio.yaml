@@ -1,0 +1,31 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: nginx
+  namespace: timeout
+spec:
+  hosts:
+  - nginx.timeout.svc.cluster.local
+  http:
+  - route:
+    - destination:
+        host: nginx.timeout.svc.cluster.local
+    timeout: 1s
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: httpd
+  namespace: timeout
+spec:
+  hosts:
+  - httpd.timeout.svc.cluster.local
+  http:
+  - fault: 
+      delay:
+        percent: 100
+        fixedDelay: 5s        # 流量转发前有5S延迟
+    route:
+    - destination:
+        host: httpd.timeout.svc.cluster.local
+---

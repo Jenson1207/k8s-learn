@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: redis
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis
+  namespace: redis
+data:
+  redis.conf: |-
+    daemonize no
+    protected-mode no
+    bind 0.0.0.0
+    port 6379
+    timeout 300
+    databases 16
+    save 900 1
+    save 300 10
+    save 60 10000 
+    loglevel notice
+    logfile /data/redis.log
+    ###################    RDB        ####################
+    dir /data
+    stop-writes-on-bgsave-error yes
+    rdbcompression yes
+    dbfilename dump.rdb
+    ##################     REPL       ################### 
+    slave-read-only yes
+    repl-diskless-sync no
+    repl-timeout 120
+    ##################    SECURITY    ###################
+    requirepass 123456
+    masterauth 123456
+    ##################     AOF        ####################
+    appendonly no
+    appendfilename "appendonly.aof"
+    appendfsync no

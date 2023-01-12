@@ -1,0 +1,33 @@
+{
+    "apiVersion": "v1",
+    "kind": "EphemeralContainers",
+    "metadata": {
+      "name": "nginx-pod"
+    },
+    "ephemeralContainers": [
+    {
+        "command": [
+           "sh"
+        ],
+        "image": "busybox",
+        "imagePullPolicy": "IfNotPresent",
+        "name": "debugger-1",
+        "stdin": true,
+        "tty": true,
+        "targetContainerName": "nginx",
+        "terminationMessagePolicy": "File"
+     },
+     {
+        "command": [
+           "sh"
+        ],
+        "image": "busybox",
+        "imagePullPolicy": "IfNotPresent",
+        "name": "debugger-2",
+        "stdin": true,
+        "tty": true,
+        "targetContainerName": "nginx",
+        "terminationMessagePolicy": "File"
+     }
+    ]
+}
