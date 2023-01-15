@@ -53,18 +53,32 @@ data:
                 // 获取k8s字段信息
                 var k8s = event.Get("kubernetes");
 
+                // 定义pod 日志类型kube-etcd,kube-controller-manager,kube-scheduler,kube-apiserver,pass(平台)
+                if (/^etcd-.*master$/.test(k8s.pod.name)) {
+                    var logType = "kube-etcd";
+                } else if (/^kube-apiserver-.*master$/.test(k8s.pod.name)) {
+                    var logType  = "kube-apiserver";
+                } else if (/^kube-controller-manager-.*master/.test(k8s.pod.name)) {
+                    var logType = "kube-controller-manager";
+                } else if (/^kube-scheduler-.*master/.test(k8s.pod.name)) {
+                    var logType = "kube-scheduler";
+                } else {
+                    var logType = "pass";
+
+                    // 定义控制器名称
+                    if ("deployment" in k8s) {
+                        var controllerType = "deployment";
+                    } else if ("statefulset" in k8s) {
+                        var controllerType = "statefulset";
+                    } else if ("daemonset" in k8s) {
+                        var controllerType = "daemonset";
+                    } else {
+                        var controllerType = "pod";
+                    }
+                }
+
                 // 获取fileds字段信息
                 var fields = event.Get("fields");
-
-                // topic 做调整,防止出现 A/A-B 应用日志放一起了,但是会导致一个问题开启A应用日志的同时，会导致A-B日志输出到Kafka中(设置消息过期？)
-                if ("deployment" in k8s) {
-                    var topic = "pass_" + k8s.namespace + "_" + k8s.deployment.name;
-                } else if ("statefulset" in k8s) {
-                    var topic = "pass_" + k8s.namespace + "_" + k8s.statefulset.name;
-                } else if ("daemonset" in k8s) {
-                    var topic = "pass_" + k8s.namespace + "_" + k8s.daemonset.name;
-                }
-                event.Put("fields.topicName",topic);
 
                 // 构建meta所需数据,这里放业务所需信息
                 var metaObj = {
@@ -72,6 +86,10 @@ data:
                     // application code
                     lsc: fields.sourceCode,
                     lst: "paas",
+                    podName: k8s.pod.name,
+                    logType: logType,
+                    nameSpace: k8s.namespace,
+                    controllerType: controllerType
                 }
                 event.Put("meta", metaObj);
             }
@@ -104,18 +122,18 @@ data:
           - stream
           # container信息
           - container
-          #- kubernetes
+          - kubernetes
           # k8s集群相关信息
           - orchestrator
         ignore_missing: true
-    output.console:
-      codec.json:
-        pretty: true
-        escape_html: false
-    #output.kafka:
-    #  enabled: "true" 
-    #  hosts: ["192.168.0.10:39094"]
-    #  topic: '%{[fields.topicName]}'
+    #output.console:
+    #  codec.json:
+    #    pretty: true
+    #    escape_html: false
+    output.kafka:
+      enabled: "true" 
+      hosts: ["192.168.0.10:39094"]
+      topic: '%{[fields.topicName]}'
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -127,6 +145,25 @@ metadata:
 data:
   filebeat-module-nginx.yml: |
   #  - module: nginx
+  #    access:
+  #      enabled: false
+  #      var.paths: ["/var/log/nginx/access.log"]
+  #    error:
+  #      enabled: false
+  #      var.paths: ["/var/log/nginx/error.log"]
+  
+  # 这个模块不好用
+  #  - module: nginx
+  #    ingress_controller:
+  #      enabled: true
+  #      var.paths: ["/var/log/containers/ingress-nginx-controller*.log"]
+  # filebeat 该模块不好用,实际没有效果
+  #filebeat-module-coredns.yml: | 
+  #  - module: coredns
+  #    log:
+  #      enabled: true
+  #      var.paths: ["/var/log/containers/coredns*.log"]
+  #      var.tags: ["coredns", "staging"]
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -140,7 +177,7 @@ data:
     - type: container
       paths:
       #- /var/log/containers/redis*.log
-      - /var/log/containers/redis-*_logging_*.log
+      - /var/log/containers/redis-*_redis_*.log
       fields:
         topicName: paas_logging_redis
         sourceType: pass
