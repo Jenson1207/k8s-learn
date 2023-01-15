@@ -1,0 +1,67 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: logging
+spec:
+  type: ClusterIP
+  ports:
+  - name: redis
+    port: 6379
+  selector:
+    application: redis
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: redis-config
+  namespace: logging
+data:
+  redis.conf: |-
+    dir /data
+    port 6379
+    bind 0.0.0.0
+    appendonly yes
+    protected-mode no
+    pidfile /data/redis-6379.pid
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: logging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      application: redis
+  template:
+    metadata:
+      labels:
+        application: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:6.2.8
+        command:
+        - "sh"
+        - "-c"
+        - "redis-server /usr/local/etc/redis/redis.conf"
+        ports:
+        - containerPort: 6379
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: config
+          mountPath: /usr/local/etc/redis/redis.conf
+          subPath: redis.conf
+      volumes:
+      - name: config
+        configMap:
+          name: redis-config
+      - name: data
+        hostPath:
+          path: /data/middleware/redis
+          type: DirectoryOrCreate
+        

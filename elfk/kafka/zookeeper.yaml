@@ -39,7 +39,7 @@ spec:
         - name: ZOO_ENABLE_AUTH
           value: "no"
         - name: ALLOW_ANONYMOUS_LOGIN
-          value: "true"
+          value: "yes"
         - name: ZOO_PORT_NUMBER
           value: "2181"
         - name: ZOO_SERVER_ID

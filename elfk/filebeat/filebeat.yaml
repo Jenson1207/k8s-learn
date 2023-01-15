@@ -23,6 +23,9 @@ data:
       reload.period: 10s
     processors:
     - add_kubernetes_metadata:
+        # 本地测试用
+        when.not.contains:
+          fields.namespace: "kube-system"
         default_indexers.enabled: true
         default_matchers.enabled: true
         host: ${NODE_NAME}
@@ -52,19 +55,28 @@ data:
             function process(event) {
                 // 获取k8s字段信息
                 var k8s = event.Get("kubernetes");
-
                 // 获取fileds字段信息
                 var fields = event.Get("fields");
+                
+                // 用于本地测试用
+                if (k8s == null) {
+                  k8s = {
+                    pod: {name: fields.pod_name},
+                    namespace: fields.namespace
+                  }
+                }
 
                 // topic 做调整,防止出现 A/A-B 应用日志放一起了,但是会导致一个问题开启A应用日志的同时，会导致A-B日志输出到Kafka中(设置消息过期？)
                 if ("deployment" in k8s) {
-                    var topic = "pass_" + k8s.namespace + "_" + k8s.deployment.name;
+                    var topic = "paas_" + k8s.namespace + "_" + k8s.deployment.name;
+                    event.Put("fields.topicName",topic);
                 } else if ("statefulset" in k8s) {
-                    var topic = "pass_" + k8s.namespace + "_" + k8s.statefulset.name;
+                    var topic = "paas_" + k8s.namespace + "_" + k8s.statefulset.name;
+                    event.Put("fields.topicName",topic);
                 } else if ("daemonset" in k8s) {
-                    var topic = "pass_" + k8s.namespace + "_" + k8s.daemonset.name;
+                    var topic = "paas_" + k8s.namespace + "_" + k8s.daemonset.name;
+                    event.Put("fields.topicName",topic);
                 }
-                event.Put("fields.topicName",topic);
 
                 // 构建meta所需数据,这里放业务所需信息
                 var metaObj = {
@@ -104,18 +116,18 @@ data:
           - stream
           # container信息
           - container
-          #- kubernetes
+          - kubernetes
           # k8s集群相关信息
           - orchestrator
         ignore_missing: true
-    output.console:
-      codec.json:
-        pretty: true
-        escape_html: false
-    #output.kafka:
-    #  enabled: "true" 
-    #  hosts: ["192.168.0.10:39094"]
-    #  topic: '%{[fields.topicName]}'
+    #output.console:
+    #  codec.json:
+    #    pretty: true
+    #    escape_html: false
+    output.kafka:
+      enabled: "true" 
+      hosts: ["192.168.0.10:39094"]
+      topic: '%{[fields.topicName]}'
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -143,58 +155,71 @@ data:
       - /var/log/containers/redis-*_logging_*.log
       fields:
         topicName: paas_logging_redis
-        sourceType: pass
+        sourceType: paas
         sourceCode: logging_redis
-  #filebeat-input-kube-apiserver.yml: |-
-  #  - type: log
-  #    paths:
-  #    - /var/log/kubernetes/kube-apiserver/kube-apiserver*
-  #    fields:
-  #      topicName: kube-apiserver
-  #    multiline:
-  #      type: pattern
-  #      pattern: '^\w\d{4}' # 匹配I0112
-  #      negate: true        # 取反
-  #      match: after
-  #filebeat-input-kube-scheduler.yml: |-
-  #  - type: filestream
-  #    id: kube-scheduler
-  #    paths:
-  #    - /var/log/kubernetes/kube-scheduler/kube-scheduler*
-  #    fields:
-  #      topicName: kube-scheduler
-  #    parsers:
-  #    - multiline:
-  #        type: pattern
-  #        pattern: '^\w\d{4}'               # 匹配W0106
-  #        negate: true                     # 取反
-  #        match: after
-  #filebeat-input-kube-controller-manager.yml: |-
-  #  - type: filestream
-  #    id: kube-controller-manager
-  #    paths:
-  #    - /var/log/kubernetes/kube-controller-manager/kube-controller-manager*
-  #    fields:
-  #      topicName: kube-controller-manager
-  #    parsers:
-  #    - multiline:
-  #        type: pattern
-  #        pattern: '^\w\d{4}'               # 匹配W0106
-  #        negate: true                      # 取反
-  #        match: after
-  #filebeat-input-kube-etcd.yml: |-
-  #  - type: filestream
-  #    id: kube-etcd
-  #    paths:
-  #    - /var/log/containers/etcd*.log
-  #    fields:
-  #      topicName: kube-etcd
-  #    parsers:
-  #    - multiline:
-  #        type: pattern
-  #        pattern: '^\d{4}-\d{1,2}-\d{1,2}' # 匹配2023-01-12
-  #        negate: true                      # 取反
-  #        match: after
+  filebeat-input-kube-apiserver.yml: |-
+    - type: log
+      paths:
+      - /var/log/kubernetes/kube-apiserver/kube-apiserver*
+      fields:
+        topicName: paas_kube-system_kube-apiserver
+        sourceType: paas
+        sourceCode: kube-system_kube-apiserver
+        pod_name: kube-apiserver
+        namespace: "kube-system"
+      multiline:
+        type: pattern
+        pattern: '^\w\d{4}' # 匹配I0112
+        negate: true        # 取反
+        match: after
+  filebeat-input-kube-controller-manager.yml: |-
+    - type: log
+      paths:
+      - /var/log/kubernetes/kube-controller-manager/kube-controller-manager*
+      fields:
+        topicName: paas_kube-system_kube-controller-manager
+        sourceType: paas
+        sourceCode: kube-system_kube-controller-manager
+        pod_name: kube-controller-manager
+        namespace: "kube-system"
+      parsers:
+      - multiline:
+          type: pattern
+          pattern: '^\w\d{4}'               # 匹配W0106
+          negate: true                      # 取反
+          match: after
+  filebeat-input-kube-scheduler.yml: |-
+    - type: log
+      paths:
+      - /var/log/kubernetes/kube-scheduler/kube-scheduler*
+      fields:
+        topicName: paas_kube-system_kube-scheduler
+        sourceType: paas
+        sourceCode: kube-system_kube-scheduler
+        pod_name: kube-scheduler
+        namespace: "kube-system"
+      parsers:
+      - multiline:
+          type: pattern
+          pattern: '^\w\d{4}'               # 匹配W0106
+          negate: true                      # 取反
+          match: after
+  filebeat-input-kube-etcd.yml: |-
+    - type: log
+      paths:
+      - /var/log/containers/etcd*.log
+      fields:
+        topicName: paas_kube-system_kube-etcd
+        sourceType: paas
+        sourceCode: kube-system_kube-etcd
+        pod_name: kube-scheduler
+        namespace: "kube-system"
+      parsers:
+      - multiline:
+          type: pattern
+          pattern: '^\d{4}-\d{1,2}-\d{1,2}' # 匹配2023-01-12
+          negate: true                      # 取反
+          match: after
 ---
 apiVersion: apps/v1
 kind: DaemonSet

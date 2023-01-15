@@ -1,0 +1,161 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logstash-config
+  namespace: logging
+data:
+  logstash.yml: |
+    http.host: "0.0.0.0"
+    path.config: /usr/share/logstash/pipeline/*.conf
+    path.data: /usr/share/logstash/data
+    config.reload.automatic: "true"
+    config.reload.interval: "10s"
+    log.level: "info"
+  pipeline.conf: |
+    input {
+      kafka {
+        bootstrap_servers => ["192.168.0.10:39094"]
+        # kubelet,kube-proxy 是否也收集?(kubelet 日志路径可能需要单独设置路径)
+        topics => ["paas_kube-system_kube-apiserver","paas_kube-system_kube-controller-manager","paas_kube-system_kube-scheduler","paas_kube-system_kube-etcd"]
+        client_id => "c2cloud"
+        group_id => "c2_groups"
+        auto_offset_reset => "earliest"
+        decorate_events => "true"
+        # json格式化一下
+        codec => "json"
+      }
+    }
+
+    filter {
+      if [meta][lsc] == "kube-system_kube-apiserver" or [meta][lsc] == "kube-system_kube-controller-manager" or [meta][lsc] == "kube-system_kube-scheduler" {
+        grok {
+          match => { "content" => "^(?<ll>\w)(?:\d{4} [^\s]*)\s+(?:\d+)\s+(?:[^ \]]+)\] (?<message>.*)$" }
+        }
+        mutate { remove_field => "content" }
+        mutate { rename => ["message","content"] }
+        # 日志等级转换
+        if [ll] == "I" {
+          mutate { update => {"ll" => "INFO"} }
+        } else if [ll] == "E" {
+          mutate { update => {"ll" => "ERROR"} }
+        } else if [ll] == "W" {
+          mutate { update => {"ll" => "WARN"} }
+        }
+      }
+    }
+    filter {
+      if [meta][lsc] == "kube-system_kube-etcd" {
+        grok {
+          match => { "content" => "^(?:\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}\.\d+) (?<ll>\w) \| (?<message>.*)$" }
+        }
+        mutate { remove_field => "content" }
+        mutate { rename => ["message","content"] }
+        # 日志等级转换
+        if [ll] == "I" {
+          mutate { update => {"ll" => "INFO"} }
+        } else if [ll] == "E" {
+          mutate { update => {"ll" => "ERROR"} }
+        } else if [ll] == "W" {
+          mutate { update => {"ll" => "WARN"} }
+        }
+      }
+    }
+
+    input {
+      kafka {
+        bootstrap_servers => ["192.168.0.10:39094"]
+        topics => ["paas_logging_redis"]
+        client_id => "paas_logging_redis"
+        group_id => "c2_groups"
+        auto_offset_reset => "earliest"
+        decorate_events => "true"
+        # json格式化一下
+        codec => "json"
+      }
+    }
+    filter {
+      if [meta][lsc] == "logging_redis" {
+        grok {
+          match => { "content" => "%{POSINT}:[A-Z] %{MONTHDAY} %{MONTH} %{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} [#*] %{GREEDYDATA:message}" }
+          add_field => { "ll" => "INFO" }
+        }
+        mutate { remove_field => "content" }
+        mutate { rename => ["message","content"] }
+      }
+    }
+
+
+    # 这里不要使用codec json格式化，会导致容器终端不显示
+    output {
+      stdout {}
+    }
+    #output {
+    #  stdout { 
+    #    codec => "json" 
+    #  }
+    #}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logstash
+  namespace: logging
+spec:
+  selector:
+    matchLabels:
+      application: logstash
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        application: logstash
+    spec:
+      nodeName: k8s-master-1
+      containers:
+      - name: logstash
+        image: logstash:7.17.8
+        #command: ["/bin/sh","-c","sleep 10000"]
+        ports:
+        - containerPort: 5044
+        volumeMounts:
+        - name: localtime
+          mountPath: /etc/localtime
+        - name: data
+          mountPath: /usr/share/logstash/data
+        - name: pipeline-conf
+          mountPath: usr/share/logstash/pipeline/
+        - name: logstash-conf
+          mountPath: /usr/share/logstash/config/logstash.yml
+          subPath: logstash.yml
+      volumes:
+      - name: localtime
+        hostPath:
+          path: /etc/localtime
+      - name: data
+        hostPath:
+          path: /data/logstash
+      - name: pipeline-conf
+        configMap:
+          name: logstash-config 
+          items:
+          - key: pipeline.conf
+            path: pipeline.conf
+      - name: logstash-conf
+        configMap:
+          name: logstash-config 
+          items:
+          - key: logstash.yml
+            path: logstash.yml
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: logstash
+  namespace: logging
+spec:
+  selector:
+    application: logstash
+  ports:
+  - protocol: TCP
+    port: 5044
+    targetPort: 5044

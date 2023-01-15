@@ -1,0 +1,42 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: etcd
+  namespace: logging
+spec:
+  type: ClusterIP
+  ports:
+  - name: port-2379
+    port: 2379
+  - name: port-2380
+    port: 2380
+  selector:
+    application: etcd
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: etcd
+  namespace: logging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      application: etcd
+  template:
+    metadata:
+      labels:
+        application: etcd
+    spec:
+      containers:
+      - name: etcd
+        image: bitnami/etcd:3.4.13
+        env:
+        - name: ALLOW_NONE_AUTHENTICATION
+          value: "yes"
+        - name: ETCD_ADVERTISE_CLIENT_URLS
+          value: "http://0.0.0.0:2379"
+        ports:
+        - containerPort: 2379
+        - containerPort: 2380
