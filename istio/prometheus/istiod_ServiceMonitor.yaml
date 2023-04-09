@@ -1,0 +1,22 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istiod
+  namespace: monitor
+  labels:
+      release: monitor
+spec:
+  endpoints:
+  - interval: 30s
+    port: http-monitoring
+    path: /metrics
+    relabelings:
+    - action: keep
+      sourceLabels: [__meta_kubernetes_service_name,__meta_kubernetes_endpoint_port_name]
+      regex: istiod;http-monitoring
+  namespaceSelector:
+    matchNames:
+    - istio-system
+  selector:
+    matchLabels:
+      app: istiod

@@ -1,0 +1,56 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: review-gateway
+  namespace: istio
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port: 
+      name: http
+      number: 80
+      protocol: HTTP
+    hosts:
+    - "*"
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: review-vs
+  namespace: istio
+spec:
+  gateways:
+  - review-gateway
+  hosts:
+  - "*"
+  http:
+  - match:
+    - uri:
+        regex: "/"
+    rewrite:
+      uri: "/reviews/7"
+    route:
+    - destination:
+        host: reviews.istio.svc.cluster.local
+        subset: v1  
+      weight: 100
+    - destination: 
+        host: reviews.istio.svc.cluster.local
+        subset: v2
+      weight: 0
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: review
+  namespace: istio
+spec:
+  host: reviews.istio.svc.cluster.local
+  subsets:
+  - name: v1 #对进入名为canary的子集的所有流量使用权重负载均衡策略，该子集由带有标签app:v1 的endpoints(如Pod)组成
+    labels:
+      version: v2
+  - name: v2
+    labels:
+      version: v2

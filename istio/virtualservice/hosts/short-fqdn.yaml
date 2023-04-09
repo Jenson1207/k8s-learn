@@ -1,0 +1,39 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: bookinfo
+  namespace: istio
+spec:
+  hosts:
+  - "bookinfo"    # 默认为mesh，对集群内pod生效
+  http:
+  - match:
+    - uri:
+        exact: /productpage
+    - uri:
+        prefix: /static
+    - uri:
+        exact: /login
+    - uri:
+        exact: /logout
+    - uri:
+        prefix: /api/v1/products
+    route:
+    - destination:
+        host: productpage.istio.svc.cluster.local
+        port:
+          number: 9080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bookinfo  # 和vs在同一个命名空间
+  namespace: istio
+  labels:
+    app: productpage
+spec:
+  ports:
+  - port: 9080
+    name: http
+  selector:
+    app: productpage

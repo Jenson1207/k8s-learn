@@ -1,0 +1,62 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: bookinfo-gateway-1
+  namespace: istio
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "*"
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: bookinfo-gateway-2
+  namespace: istio
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    hosts:
+    - "*"
+    tls:
+      mode: SIMPLE
+      serverCertificate: /etc/istio/ingressgateway-certs/tls.crt
+      privateKey: /etc/istio/ingressgateway-certs/tls.key
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: bookinfo
+  namespace: istio
+spec:
+  exportTo:
+  - '*'
+  gateways:
+  - istio/bookinfo-gateway-1  # 如果不是namespace/gatewayname，默认当前命名空间寻找
+  - istio/bookinfo-gateway-2
+  hosts:
+  - '*'
+  http:
+  - match:
+    - uri:
+        exact: /productpage
+      gateways:
+      - istio/bookinfo-gateway-1
+    - uri:
+        prefix: /static
+    route:
+    - destination:
+        host: productpage
+        port:
+          number: 9080

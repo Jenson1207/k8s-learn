@@ -124,10 +124,10 @@ data:
     #  codec.json:
     #    pretty: true
     #    escape_html: false
-    output.kafka:
-      enabled: "true" 
-      hosts: ["192.168.0.10:39094"]
-      topic: '%{[fields.topicName]}'
+    #output.kafka:
+    #  enabled: "true" 
+    #  hosts: ["192.168.0.10:39094"]
+    #  topic: '%{[fields.topicName]}'
 ---
 apiVersion: v1
 kind: ConfigMap

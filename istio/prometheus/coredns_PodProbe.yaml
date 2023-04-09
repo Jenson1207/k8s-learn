@@ -1,0 +1,25 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: coredns
+  namespace: monitor
+  labels:
+    release: monitor              # 设置标签，podmonitor会选择这个
+spec:
+  podMetricsEndpoints:
+  - interval: 30s
+    filterRunning: True           # 设置不抓取那些Failed, Succeeded的Pod指标
+    port: metrics                 # 填写pod yaml中Prometheus Exporter对应的Port的Name
+    path: /metrics                # 填写Prometheus Exporter对应的Path的值，不填默认/metrics
+    relabelings:
+    - sourceLabels: 
+      - __meta_kubernetes_pod_label_app_kubernetes_io_name
+      - __meta_kubernetes_pod_label_k8s_app
+      regex: coredns;kube-dns
+      action: keep
+  namespaceSelector:              # 选择要监控pod所在的namespace
+    matchNames:
+    - kube-system                 # 设置coredns所在命名空间
+  selector:                       # 填写要监控pod的Label值，以定位目标pod
+    matchLabels:
+      k8s-app: kube-dns

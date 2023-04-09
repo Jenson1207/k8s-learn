@@ -1,0 +1,38 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: test
+spec:
+  selector:
+    istio: ingressgateway # use istio default ingress gateway
+  servers:
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: PASSTHROUGH
+    hosts:
+    - test.com
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: nginx
+spec:
+  hosts:
+  - test.com
+  gateways:
+  - test
+  tls:
+  - match:
+    - port: 443
+      # SNI (server name indicator) to match on. Wildcard prefixes can be used in the SNI value, e.g., *.com will match foo.example.com as well as example.com. An SNI value must be a subset (i.e., fall within the domain) of the corresponding virtual serivce’s hosts.
+      # 用来匹配TLS请求的SNI。SNI的值必须是VirtualService的hosts的子集
+      sniHosts:
+      - test.com
+    route:
+    - destination:
+        host: nginx.default.svc.cluster.local
+        port:
+          number: 443

@@ -1,0 +1,72 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: bookinfo-gateway
+  namespace: istio
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "*"
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: bookinfo
+  namespace: istio
+spec:
+  hosts:
+  - "*"
+  gateways:
+  - bookinfo-gateway
+  http:
+  - match:
+    - uri:
+        exact: /productpage
+    - uri:
+        prefix: /static
+    - uri:
+        exact: /login
+    - uri:
+        exact: /logout
+    - uri:
+        prefix: /api/v1/products
+    route:
+    - destination:
+        host: productpage.istio.svc.cluster.local
+        port:
+          number: 9080
+        subset: v1
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: productpage
+  namespace: istio
+spec:
+  host: productpage.istio.svc.cluster.local
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 1
+        connectTimeout: 30ms
+      http:
+        maxRequestsPerConnection: 1
+        http1MaxPendingRequests: 1
+    outlierDetection:
+      #consecutiveErrors: 1
+     # consecutiveGatewayErrors: 5
+      consecutive5xxErrors: 1
+      interval: 5s
+      baseEjectionTime: 60s
+      maxEjectionPercent: 100
+      minHealthPercent: 0

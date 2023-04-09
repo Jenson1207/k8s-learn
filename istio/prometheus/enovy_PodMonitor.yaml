@@ -1,0 +1,29 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: envoy
+  namespace: monitor
+  labels:
+    release: monitor
+spec:
+  podMetricsEndpoints:
+  - interval: 30s
+    filterRunning: True
+    port: http-envoy-prom     
+    path: /stats/prometheus
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_container_port_name] 
+      regex: '.*-envoy-prom'
+      action: keep
+  namespaceSelector:
+    matchNames:
+    - istio
+  selector:       
+    matchExpressions:
+    - key: app
+      operator: In
+      values:
+      - details
+      - productpage
+      - ratings
+      - reviews

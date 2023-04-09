@@ -1,0 +1,184 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-configmap
+data:
+  html-v1: | 
+    this is version 1
+  html-v2: |
+    this is version 2
+  nginx.conf: |
+    events{
+    }
+    http {
+      log_format main '$remote_addr - $remote_user [$time_local]  $status '
+      '"$request" $body_bytes_sent "$http_referer" '
+      '"$http_user_agent" "$http_x_forwarded_for"';
+      access_log /var/log/nginx/access.log main;
+      error_log  /var/log/nginx/error.log;
+
+      server {
+        listen 443 ssl;
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        server_name nginx.example.com;
+        ssl_certificate /etc/nginx-server-certs/tls.crt;
+        ssl_certificate_key /etc/nginx-server-certs/tls.key;
+      }
+      server {
+        listen 80;
+        root /usr/share/nginx/html;
+        index index.html;
+      }
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-version-all
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    protocol: TCP
+    name: https
+  selector:
+    app: nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-version-v1
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    protocol: TCP
+    name: https
+  selector:
+    app: nginx
+    version: v1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-version-v2
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    protocol: TCP
+    name: https
+  selector:
+    app: nginx
+    version: v2
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-version-v1
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+      version: v1
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: nginx
+        version: v1
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 443
+        - containerPort: 80
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+          readOnly: true
+        - name: nginx-html
+          mountPath: /usr/share/nginx/html/index.html
+          subPath: index.html
+        - name: nginx-server-certs
+          mountPath: /etc/nginx-server-certs
+          readOnly: true
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: nginx-configmap
+          items:
+          - key: nginx.conf
+            path: nginx.conf
+      - name: nginx-html
+        configMap:
+          name: nginx-configmap
+          items:
+          - key: html-v1
+            path: index.html
+      - name: nginx-server-certs
+        secret:
+          secretName: nginx-server-certs
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-version-v2
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+      version: v2
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: nginx
+        version: v2
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 443
+        - containerPort: 80
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+          readOnly: true
+        - name: nginx-html
+          mountPath: /usr/share/nginx/html/index.html
+          subPath: index.html
+        - name: nginx-server-certs
+          mountPath: /etc/nginx-server-certs
+          readOnly: true
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: nginx-configmap
+          items:
+          - key: nginx.conf
+            path: nginx.conf
+      - name: nginx-html
+        configMap:
+          name: nginx-configmap
+          items:
+          - key: html-v2
+            path: index.html
+      - name: nginx-server-certs
+        secret:
+          secretName: nginx-server-certs

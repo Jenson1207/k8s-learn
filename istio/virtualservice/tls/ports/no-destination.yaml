@@ -1,0 +1,35 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: bookinfo-gateway
+  namespace: istio
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "*"
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: nginx
+  namespace: istio
+spec:
+  hosts:
+  - "*"
+  exportTo: # *,生成的规则让其他网格内访问时也生效
+  - "*"
+  gateways:
+  - bookinfo-gateway
+  http:
+  - match:
+    route:
+    - destination:
+        host: nginx.default.svc.cluster.local
+        port:
+          number: 80

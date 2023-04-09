@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: logging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+  template:
+    metadata:
+      labels:
+        name: bystart-mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:5.7
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: db
+              containerPort: 
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: "taozi.cn"  #数据库密码
+          volumeMounts:
+            - mountPath: /var/lib/mysql
+              name: bystart-mysql-data
+      volumes:
+        - name: bystart-mysql-data
+          persistentVolumeClaim:
+            claimName: bystart-mysql-5-7-data-pvc
