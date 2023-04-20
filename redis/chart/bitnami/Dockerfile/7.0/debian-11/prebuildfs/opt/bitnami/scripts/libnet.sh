@@ -16,6 +16,16 @@
 #   $2 - IP address version (v4, v6), leave empty for resolving to any version
 # Returns:
 #   IP
+# getent ahosts just can get self hostname -> ip
+# harbor [ /harbor ]$ cat /etc/hosts
+# # Kubernetes-managed hosts file.
+# 127.0.0.1	localhost
+# ::1	localhost ip6-localhost ip6-loopback
+# fe00::0	ip6-localnet
+# fe00::0	ip6-mcastprefix
+# fe00::1	ip6-allnodes
+# fe00::2	ip6-allrouters
+# 172.20.1.11	c2-harbor-harbor-exporter-555546b875-v9q8w
 #########################
 dns_lookup() {
     local host="${1:?host is missing}"

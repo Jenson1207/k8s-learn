@@ -18,6 +18,7 @@ set -m
 . /opt/bitnami/scripts/libos.sh
 . /opt/bitnami/scripts/librediscluster.sh
 
+# nodes = (redis-node-0 redis-node-1 redis-node-2 redis-node-3 redis-node-4 redis-node-5)
 read -ra nodes <<< "$(tr ',;' ' ' <<< "${REDIS_NODES}")"
 
 ARGS=("--port" "$REDIS_PORT_NUMBER")
@@ -38,6 +39,7 @@ if is_boolean_yes "$REDIS_CLUSTER_CREATOR" && ! [[ -f "${REDIS_DATA_DIR}/nodes.c
     if am_i_root; then
         gosu "$REDIS_DAEMON_USER" redis-server "${ARGS[@]}" &
     else
+        # redis-server --port port --include xx --requirepass xx --masterauth xx --protected-mode no
         redis-server "${ARGS[@]}" &
     fi
     # Create the cluster

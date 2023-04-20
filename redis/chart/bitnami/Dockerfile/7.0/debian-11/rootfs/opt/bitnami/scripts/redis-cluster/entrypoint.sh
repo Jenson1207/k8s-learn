@@ -27,4 +27,8 @@ if [[ "$*" = *"/run.sh"* ]]; then
 fi
 
 echo ""
+
+# exec /opt/bitnami/scripts/redis-cluster/run.sh
 exec "$@"
+
+# /opt/bitnami/scripts/redis-cluster/entrypoint.sh /opt/bitnami/scripts/redis-cluster/run.sh

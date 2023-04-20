@@ -255,28 +255,38 @@ redis_validate() {
 # Returns:
 #   None
 #########################
+# this function will not execute in redis-cluster mode
 redis_configure_replication() {
     info "Configuring replication mode"
 
     redis_conf_set replica-announce-ip "${REDIS_REPLICA_IP:-$(get_machine_ip)}"
     redis_conf_set replica-announce-port "${REDIS_REPLICA_PORT:-$REDIS_MASTER_PORT_NUMBER}"
+
     # Use TLS in the replication connections
     if is_boolean_yes "$REDIS_TLS_ENABLED"; then
         redis_conf_set tls-replication yes
     fi
+    
+    # when node is master
     if [[ "$REDIS_REPLICATION_MODE" = "master" ]]; then
         if [[ -n "$REDIS_PASSWORD" ]]; then
             redis_conf_set masterauth "$REDIS_PASSWORD"
         fi
+    
+    # when node is slave
     elif [[ "$REDIS_REPLICATION_MODE" =~ ^(slave|replica)$ ]]; then
         if [[ -n "$REDIS_SENTINEL_HOST" ]]; then
             local -a sentinel_info_command=("redis-cli" "-h" "${REDIS_SENTINEL_HOST}" "-p" "${REDIS_SENTINEL_PORT_NUMBER}")
+
             is_boolean_yes "$REDIS_TLS_ENABLED" && sentinel_info_command+=("--tls" "--cert" "${REDIS_TLS_CERT_FILE}" "--key" "${REDIS_TLS_KEY_FILE}" "--cacert" "${REDIS_TLS_CA_FILE}")
+
+            # redis-cli -h sentinel_host -p sentinel_port sentinel get-master-addr-by-name 
             sentinel_info_command+=("sentinel" "get-master-addr-by-name" "${REDIS_SENTINEL_MASTER_NAME}")
             read -r -a REDIS_SENTINEL_INFO <<< "$("${sentinel_info_command[@]}")"
             REDIS_MASTER_HOST=${REDIS_SENTINEL_INFO[0]}
             REDIS_MASTER_PORT_NUMBER=${REDIS_SENTINEL_INFO[1]}
         fi
+
         wait-for-port --host "$REDIS_MASTER_HOST" "$REDIS_MASTER_PORT_NUMBER"
         [[ -n "$REDIS_MASTER_PASSWORD" ]] && redis_conf_set masterauth "$REDIS_MASTER_PASSWORD"
         # Starting with Redis 5, use 'replicaof' instead of 'slaveof'. Maintaining both for backward compatibility
@@ -357,7 +367,9 @@ redis_override_conf() {
 #########################
 redis_initialize() {
   redis_configure_default
-  # generate redis replication conf
+
+  # this function will generate redis replication conf when user doesn't define REDIS_MOUNTED_CONF_DIR/redis.conf and REDIS_REPLICATION_MODE set yes
+  # there has bug , because of there no wait-for-port function , and even not provide replication mode parameters
   redis_override_conf
 }
 
@@ -408,8 +420,10 @@ redis_configure_default() {
         fi
                                                     # # /opt/bitnami/redis/etc/redis.conf
         cp "${REDIS_MOUNTED_CONF_DIR}/redis.conf" "${REDIS_BASE_DIR}/etc/redis.conf"
+    # no external redis.conf
     else
         info "Setting Redis config file"
+        # disable remote connect if user does not provide password
         if is_boolean_yes "$ALLOW_EMPTY_PASSWORD"; then
             # Allow remote connections without password
             redis_conf_set protected-mode no
@@ -419,6 +433,7 @@ redis_configure_default() {
         # Leave default fsync (every second)
         redis_conf_set appendonly "${REDIS_AOF_ENABLED}"
         redis_conf_set port "$REDIS_PORT_NUMBER"
+
         # TLS configuration
         if is_boolean_yes "$REDIS_TLS_ENABLED"; then
             if [[ "$REDIS_PORT_NUMBER" ==  "6379" ]] && [[ "$REDIS_TLS_PORT_NUMBER" ==  "6379" ]]; then
@@ -436,8 +451,10 @@ redis_configure_default() {
             [[ -n "$REDIS_TLS_DH_PARAMS_FILE" ]] && redis_conf_set tls-dh-params-file "$REDIS_TLS_DH_PARAMS_FILE"
             redis_conf_set tls-auth-clients "$REDIS_TLS_AUTH_CLIENTS"
         fi
-        # Multithreading configuration
+        # Multithreading configuration that useful for redis6.0+
+        # read also use multithreading,default just for write
         ! is_empty_value "$REDIS_IO_THREADS_DO_READS" && redis_conf_set "io-threads-do-reads" "$REDIS_IO_THREADS_DO_READS"
+        # the num of io threadings
         ! is_empty_value "$REDIS_IO_THREADS" && redis_conf_set "io-threads" "$REDIS_IO_THREADS"
 
         if [[ -n "$REDIS_PASSWORD" ]]; then
@@ -445,12 +462,17 @@ redis_configure_default() {
         else
             redis_conf_unset requirepass
         fi
+        # disable commands, separated by ","
         if [[ -n "$REDIS_DISABLE_COMMANDS" ]]; then
             redis_disable_unsafe_commands
         fi
+
+        # redis acl
         if [[ -n "$REDIS_ACLFILE" ]]; then
             redis_conf_set aclfile "$REDIS_ACLFILE"
         fi
+
+        # add more redis configuration, use >>> to file,just end work
         redis_append_include_conf
     fi
 }

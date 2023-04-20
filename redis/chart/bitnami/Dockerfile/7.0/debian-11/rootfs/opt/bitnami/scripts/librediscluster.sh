@@ -149,6 +149,7 @@ redis_cluster_create() {
     local wait_command
     local create_command
 
+    # waiting for all the nodes to be ready..
     for node in "${nodes[@]}"; do
         read -r -a host_and_port <<< "$(to_host_and_port "$node")"
         wait_command="timeout -v 5 redis-cli -h ${host_and_port[0]} -p ${host_and_port[1]} ping"
@@ -166,13 +167,17 @@ redis_cluster_create() {
 
     for node in "${nodes[@]}"; do
         read -r -a host_and_port <<< "$(to_host_and_port "$node")"
+        # the sockets variable just get itself's ip:port 
         sockets+=("$(wait_for_dns_lookup "${host_and_port[0]}" "${REDIS_CLUSTER_DNS_LOOKUP_RETRIES}" "${REDIS_CLUSTER_DNS_LOOKUP_SLEEP}"):${host_and_port[1]}")
     done
-
+    # redis-cli --cluster create ip:port ip:port ip:port ip:port ip:port ip:port --cluster-replicas 1 --cluster-yes
     create_command="redis-cli --cluster create ${sockets[*]} --cluster-replicas ${REDIS_CLUSTER_REPLICAS} --cluster-yes"
+
+    # tls set
     if is_boolean_yes "$REDIS_TLS_ENABLED"; then
         create_command="${create_command} --tls --cert ${REDIS_TLS_CERT_FILE} --key ${REDIS_TLS_KEY_FILE} --cacert ${REDIS_TLS_CA_FILE}"
     fi
+
     yes yes | $create_command || true
     if redis_cluster_check "${sockets[0]}"; then
         echo "Cluster correctly created"
@@ -187,6 +192,7 @@ redis_cluster_create() {
 ##  - $1: node where to check the cluster state
 #########################
 redis_cluster_check() {
+    # tls
     if is_boolean_yes "$REDIS_TLS_ENABLED"; then
         local -r check=$(redis-cli --tls --cert "${REDIS_TLS_CERT_FILE}" --key "${REDIS_TLS_KEY_FILE}" --cacert "${REDIS_TLS_CA_FILE}" --cluster check "$1")
     else
@@ -208,6 +214,17 @@ redis_cluster_check() {
 # Returns:
 #   None
 #########################
+# nodes.conf
+#afe20324dfa8abef7d26d82c91c2c92532618ea9 172.20.5.83:6379@16379 slave b0280974e8050d077c854d9fa96d303c4b963d95 0 1680765520000 8 connected
+#dc8d3a7e96879f196569e15a16c2fceaa1d2ed04 172.20.3.32:6379@16379 slave 8cd5108f3d01cad78bceb2586acfe122978f307b 0 1680765523000 2 connected
+#8cd5108f3d01cad78bceb2586acfe122978f307b 172.20.3.40:6379@16379 master - 1680765515588 1680765508000 2 disconnected 5461-10922
+#3d531dc2eb0e9ee147e0f8324945ee130f6656b3 172.20.2.49:6379@16379 myself,slave 73e656ce49c84cdd0ef7065924c3b34ad59c40cd 0 1680765517000 7 connected
+#b0280974e8050d077c854d9fa96d303c4b963d95 172.20.0.58:6379@16379 master - 0 1680765523000 8 connected 10923-16383
+#73e656ce49c84cdd0ef7065924c3b34ad59c40cd 172.20.1.166:6379@16379 master - 0 1680765523000 7 connected 0-5460
+#vars currentEpoch 8 lastVoteEpoch 0
+
+# nodes.sh
+#declare -A host_2_ip_array=([testredis-redis-1.testredis-redis-cluster-headless]="172.20.3.31" [testredis-redis-3.testredis-redis-cluster-headless]="172.20.0.58" [testredis-redis-5.testredis-redis-cluster-headless]="172.20.3.32" [testredis-redis-0.testredis-redis-cluster-headless]="172.20.2.49" [testredis-redis-2.testredis-redis-cluster-headless]="172.20.5.83" [testredis-redis-4.testredis-redis-cluster-headless]="172.20.1.166" )
 redis_cluster_update_ips() {
     read -ra nodes <<< "$(tr ',;' ' ' <<< "${REDIS_NODES}")"
     declare -A host_2_ip_array # Array to map hosts and IPs
@@ -220,15 +237,18 @@ redis_cluster_update_ips() {
             host_2_ip_array["$node"]="$ip"
         done
         echo "Storing map with hostnames and IPs"
+        # declare -p xx host_2_ip_arry == declare -A host_2_ip_array=([redis-2]="172.24.1.238" [redis-3]="172.24.1.239" [redis-1]="172.24.1.78" )
         declare -p host_2_ip_array >"${REDIS_DATA_DIR}/nodes.sh"
     else
         # The cluster was already started
-        . "${REDIS_DATA_DIR}/nodes.sh"
+        . "${REDIS_DATA_DIR}/nodes.sh"      # it keep last cluster node information, so next need to update
         # Update the IPs in the nodes.conf
         for node in "${nodes[@]}"; do
             read -r -a host_and_port <<< "$(to_host_and_port "$node")"
             newIP=$(wait_for_dns_lookup "${host_and_port[0]}" "$REDIS_DNS_RETRIES" 5)
+
             # The node can be new if we are updating the cluster, so catch the unbound variable error
+            # ${var+OTHER}  如果var声明了, 那么其值就是$OTHER, 否则就为null字符串
             if [[ ${host_2_ip_array[$node]+true} ]]; then
                 echo "Changing old IP ${host_2_ip_array[$node]} by the new one ${newIP}"
                 nodesFile=$(sed "s/ ${host_2_ip_array[$node]}:/ $newIP<NEWIP>:/g" "${REDIS_DATA_DIR}/nodes.conf")
@@ -250,8 +270,11 @@ redis_cluster_update_ips() {
 # Returns:
 #   - 2 element Array of host and port
 #########################
+# REDIS_NODES=redis-node-0 redis-node-1 redis-node-2 redis-node-3 redis-node-4 redis-node-5
 to_host_and_port() {
     local host="${1:?host is required}"
+
+    # host_and_port is array
     read -r -a host_and_port <<< "$(echo "$host" | tr ":" " ")"
 
     if [ "${#host_and_port[*]}" -eq "1" ]; then
@@ -261,6 +284,6 @@ to_host_and_port() {
             host_and_port=("${host_and_port[0]}" "${REDIS_PORT_NUMBER}")
         fi
     fi
-
+    # hostname port
     echo "${host_and_port[*]}"
 }
