@@ -24,6 +24,16 @@ spec:
       labels:
         app: redis
     spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchExpressions: 
+              - key: app
+                operator: In 
+                values: 
+                - redis
       containers:
       - name: redis
         image: redis:5.0.7

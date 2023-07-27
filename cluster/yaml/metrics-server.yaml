@@ -36,11 +36,14 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - nodes/metrics
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
   - pods
   - nodes
-  - nodes/stats
-  - namespaces
-  - configmaps
   verbs:
   - get
   - list
@@ -127,24 +130,15 @@ spec:
       labels:
         k8s-app: metrics-server
     spec:
-      nodeName: k8s-master-1
-      tolerations:
-      - key: "node-role.kubernetes.io/master"
-        operator: "Exists"
-      priorityClassName: system-cluster-critical
-      serviceAccountName: metrics-server
       containers:
       - args:
         - --cert-dir=/tmp
         - --secure-port=4443
-        - --metric-resolution=30s
-        - --kubelet-insecure-tls
         - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
-        - --requestheader-client-ca-file=/etc/kubernetes/ssl/front-proxy-ca.pem # change to front-proxy-ca.crt for kubeadm
-        - --requestheader-username-headers=X-Remote-User
-        - --requestheader-group-headers=X-Remote-Group
-        - --requestheader-extra-headers-prefix=X-Remote-Extra-
-        image: registry.aliyuncs.com/google_containers/metrics-server:v0.4.1
+        - --kubelet-use-node-status-port
+        - --metric-resolution=15s
+        - --kubelet-insecure-tls
+        image: dyrnq/metrics-server:v0.6.3
         imagePullPolicy: IfNotPresent
         livenessProbe:
           failureThreshold: 3
@@ -164,22 +158,27 @@ spec:
             path: /readyz
             port: https
             scheme: HTTPS
+          initialDelaySeconds: 20
           periodSeconds: 10
+        resources:
+          requests:
+            cpu: 100m
+            memory: 200Mi
         securityContext:
+          allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
           runAsNonRoot: true
           runAsUser: 1000
         volumeMounts:
         - mountPath: /tmp
           name: tmp-dir
-        - name: ca-ssl
-          mountPath: /etc/kubernetes/ssl
+      nodeSelector:
+        kubernetes.io/os: linux
+      priorityClassName: system-cluster-critical
+      serviceAccountName: metrics-server
       volumes:
       - emptyDir: {}
         name: tmp-dir
-      - name: ca-ssl
-        hostPath:
-          path: /etc/kubernetes/ssl
 ---
 apiVersion: apiregistration.k8s.io/v1
 kind: APIService
@@ -196,4 +195,3 @@ spec:
     namespace: kube-system
   version: v1beta1
   versionPriority: 100
-
